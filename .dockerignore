@@ -11,3 +11,7 @@ temp
 
 .env
 *.log
+
+# Ignore doc
+
+doc
