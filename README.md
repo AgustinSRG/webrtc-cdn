@@ -91,6 +91,7 @@ Here is a list with more options you can configure:
 | LOG_DEBUG | Set to `YES` or `NO`. By default is `NO` |
 | MAX_IP_CONCURRENT_CONNECTIONS | Max number of concurrent connections to accept from a single IP. By default is 4. |
 | CONCURRENT_LIMIT_WHITELIST | List of IP ranges not affected by the max number of concurrent connections limit. Split by commas. Example: `127.0.0.1,10.0.0.0/8` |
+| MAX_REQUESTS_PER_SOCKET | Max number of active requests for a single websocket session. By default is `100` |
 
 ## Documentation
 
