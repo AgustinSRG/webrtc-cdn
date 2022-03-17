@@ -86,12 +86,20 @@ Here is a list with more options you can configure:
 
 | Variable Name | Description |
 |---|---|
-| WS_PORT | HTTP listening port for insecure websocket connections. Default is `80` |
+| HTTP_PORT | HTTP listening port for insecure websocket connections. Default is `80` |
 | LOG_REQUESTS | Set to `YES` or `NO`. By default is `YES` |
 | LOG_DEBUG | Set to `YES` or `NO`. By default is `NO` |
 | MAX_IP_CONCURRENT_CONNECTIONS | Max number of concurrent connections to accept from a single IP. By default is 4. |
 | CONCURRENT_LIMIT_WHITELIST | List of IP ranges not affected by the max number of concurrent connections limit. Split by commas. Example: `127.0.0.1,10.0.0.0/8` |
 | MAX_REQUESTS_PER_SOCKET | Max number of active requests for a single websocket session. By default is `100` |
+
+## Firewall configuration
+
+The ports used by the signaling websocket server must be openned, they are `80` and `443` by default.
+
+In order for the nodes to be able to communicate via WebRTC, they need to use the port range `40000:65535/UDP`
+
+If you use a TURN server there is no need for the UDP ports to be oppened, since communication can be acomplish using the TURN server as intermediate.
 
 ## Documentation
 
