@@ -1,3 +1,5 @@
+// Main
+
 package main
 
 import (
@@ -29,6 +31,9 @@ func main() {
 	node := WebRTC_CDN_Node{
 		id: nodeId,
 	}
+
+	// Init node
+	node.init()
 
 	// Start redis listener
 	go setupRedisListener(&node)
