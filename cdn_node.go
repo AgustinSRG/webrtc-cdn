@@ -7,6 +7,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"net"
 	"os"
 	"strconv"
 	"strings"
@@ -16,19 +17,46 @@ import (
 
 	"github.com/go-redis/redis/v8"
 	"github.com/gorilla/websocket"
+	"github.com/netdata/go.d.plugin/pkg/iprange"
 )
 
 type WebRTC_CDN_Node struct {
+	// Config
 	id          string
 	redisClient *redis.Client
 	upgrader    *websocket.Upgrader
 	reqCount    uint64
+	ipLimit     uint32
 
+	// Sync
 	mutexReqCount *sync.Mutex
+	mutexIpCount  *sync.Mutex
+
+	// Status
+	connections map[uint64]*Connection_Handler
+	ipCount     map[string]uint32
 }
 
 func (node *WebRTC_CDN_Node) init() {
+	// Mutex
 	node.mutexReqCount = &sync.Mutex{}
+	node.mutexIpCount = &sync.Mutex{}
+
+	// Status
+	node.connections = make(map[uint64]*Connection_Handler)
+	node.ipCount = make(map[string]uint32)
+
+	// Config
+	node.ipLimit = 4
+	custom_ip_limit := os.Getenv("MAX_IP_CONCURRENT_CONNECTIONS")
+	if custom_ip_limit != "" {
+		cil, e := strconv.Atoi(custom_ip_limit)
+		if e != nil {
+			node.ipLimit = uint32(cil)
+		}
+	}
+
+	node.reqCount = 0
 }
 
 func (node *WebRTC_CDN_Node) getRequestID() uint64 {
@@ -38,6 +66,65 @@ func (node *WebRTC_CDN_Node) getRequestID() uint64 {
 	node.reqCount++
 
 	return node.reqCount
+}
+
+func (node *WebRTC_CDN_Node) AddIP(ip string) bool {
+	node.mutexIpCount.Lock()
+	defer node.mutexIpCount.Unlock()
+
+	c := node.ipCount[ip]
+
+	if c >= node.ipLimit {
+		return false
+	}
+
+	node.ipCount[ip] = c + 1
+
+	return true
+}
+
+func (node *WebRTC_CDN_Node) isIPExempted(ipStr string) bool {
+	r := os.Getenv("CONCURRENT_LIMIT_WHITELIST")
+
+	if r == "" {
+		return false
+	}
+
+	if r == "*" {
+		return true
+	}
+
+	ip := net.ParseIP(ipStr)
+
+	parts := strings.Split(r, ",")
+
+	for i := 0; i < len(parts); i++ {
+		rang, e := iprange.ParseRange(parts[i])
+
+		if e != nil {
+			LogError(e)
+			continue
+		}
+
+		if rang.Contains(ip) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (node *WebRTC_CDN_Node) RemoveIP(ip string) {
+	node.mutexIpCount.Lock()
+	defer node.mutexIpCount.Unlock()
+
+	c := node.ipCount[ip]
+
+	if c <= 1 {
+		delete(node.ipCount, ip)
+	} else {
+		node.ipCount[ip] = c - 1
+	}
 }
 
 func (node *WebRTC_CDN_Node) receiveRedisMessage(msg string) {
@@ -136,9 +223,6 @@ func (node *WebRTC_CDN_Node) runHTTPServer(wg *sync.WaitGroup) {
 }
 
 func (node *WebRTC_CDN_Node) run() {
-	// Reset request counter
-	node.reqCount = 0
-
 	// Setup Redis sender
 
 	redisHost := os.Getenv("REDIS_HOST")
@@ -189,6 +273,15 @@ func (node *WebRTC_CDN_Node) ServeHTTP(w http.ResponseWriter, req *http.Request)
 	LogRequest(reqId, req.RemoteAddr, ""+req.Method+" "+req.RequestURI)
 
 	if req.URL.Path == "/ws" {
+		if !node.isIPExempted(req.RemoteAddr) {
+			if !node.AddIP(req.RemoteAddr) {
+				w.WriteHeader(429)
+				fmt.Fprintf(w, "Too many requests.")
+				LogRequest(reqId, req.RemoteAddr, "Connection rejected: Too many requests")
+				return
+			}
+		}
+
 		c, err := node.upgrader.Upgrade(w, req, nil)
 		if err != nil {
 			LogError(err)
