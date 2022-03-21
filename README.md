@@ -87,6 +87,7 @@ Here is a list with more options you can configure:
 | Variable Name | Description |
 |---|---|
 | HTTP_PORT | HTTP listening port for insecure websocket connections. Default is `80` |
+| BIND_ADDRESS | Bind address for siganling services. By default it binds to all network interfaces. |
 | LOG_REQUESTS | Set to `YES` or `NO`. By default is `YES` |
 | LOG_DEBUG | Set to `YES` or `NO`. By default is `NO` |
 | MAX_IP_CONCURRENT_CONNECTIONS | Max number of concurrent connections to accept from a single IP. By default is 4. |
