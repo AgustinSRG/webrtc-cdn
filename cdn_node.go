@@ -37,6 +37,9 @@ type WebRTC_CDN_Node struct {
 	// Status
 	connections map[uint64]*Connection_Handler
 	ipCount     map[string]uint32
+
+	sources map[string]*WRTC_Source
+	relays  map[string]*WRTC_Relay
 }
 
 func (node *WebRTC_CDN_Node) init() {

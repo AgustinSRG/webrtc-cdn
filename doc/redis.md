@@ -82,12 +82,16 @@ The destination node ID must be provided in the `dst` property in the message.
 
 The sdp message must be provided in the `sdp` property in the message.
 
+The `audio` and `video` peoperties indicate the kind of tracks to receive.
+
 ```json
 {
     "type": "OFFER",
     "src": "node-id",
     "dst": "node-id",
     "sid": "stream-id",
+    "audio": true,
+    "video": true,
     "sdp": "sdp message"
 }
 ```

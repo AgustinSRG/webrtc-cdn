@@ -4,6 +4,7 @@ package main
 
 import (
 	"github.com/gorilla/websocket"
+	"github.com/pion/webrtc/v3"
 )
 
 type Connection_Handler struct {
@@ -45,4 +46,8 @@ func (h *Connection_Handler) log(msg string) {
 
 func (h *Connection_Handler) logDebug(msg string) {
 	LogDebugSession(h.id, h.ip, msg)
+}
+
+func (h *Connection_Handler) onTracksReceived(sid string, trackVideo *webrtc.TrackLocalStaticRTP, trackAudio *webrtc.TrackLocalStaticRTP) {
+
 }
