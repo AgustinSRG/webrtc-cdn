@@ -29,8 +29,10 @@ type WebRTC_CDN_Node struct {
 	ipLimit     uint32
 
 	// Sync
-	mutexReqCount *sync.Mutex
-	mutexIpCount  *sync.Mutex
+	mutexReqCount  *sync.Mutex
+	mutexIpCount   *sync.Mutex
+	mutexRedisSend *sync.Mutex
+	mutexStatus    *sync.Mutex
 
 	// Status
 	connections map[uint64]*Connection_Handler
@@ -41,6 +43,8 @@ func (node *WebRTC_CDN_Node) init() {
 	// Mutex
 	node.mutexReqCount = &sync.Mutex{}
 	node.mutexIpCount = &sync.Mutex{}
+	node.mutexRedisSend = &sync.Mutex{}
+	node.mutexStatus = &sync.Mutex{}
 
 	// Status
 	node.connections = make(map[uint64]*Connection_Handler)
@@ -157,6 +161,10 @@ func (node *WebRTC_CDN_Node) sendRedisMessage(channel string, msg *map[string]st
 		LogError(e)
 		return
 	}
+
+	node.mutexRedisSend.Lock()
+	defer node.mutexRedisSend.Unlock()
+
 	r := node.redisClient.Publish(context.Background(), channel, string(b))
 	if r != nil && r.Err() != nil {
 		LogError(r.Err())
@@ -295,9 +303,22 @@ func (node *WebRTC_CDN_Node) ServeHTTP(w http.ResponseWriter, req *http.Request)
 			connection: c,
 		}
 
+		node.mutexStatus.Lock()
+
+		node.connections[reqId] = &handler
+
+		node.mutexStatus.Unlock()
+
 		go handler.run()
 	} else {
 		w.WriteHeader(200)
 		fmt.Fprintf(w, "WebRTC-CDN Signaling Server. Connect to /ws for signaling")
 	}
+}
+
+func (node *WebRTC_CDN_Node) onClose(id uint64) {
+	node.mutexStatus.Lock()
+	defer node.mutexStatus.Unlock()
+
+	delete(node.connections, id)
 }

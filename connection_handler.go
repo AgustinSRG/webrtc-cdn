@@ -18,6 +18,7 @@ func (h *Connection_Handler) run() {
 		h.log("Connection closed.")
 		h.connection.Close()
 		h.node.RemoveIP(h.ip)
+		h.node.onClose(h.id)
 	}()
 
 	c := h.connection
