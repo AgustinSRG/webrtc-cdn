@@ -306,6 +306,8 @@ func (node *WebRTC_CDN_Node) ServeHTTP(w http.ResponseWriter, req *http.Request)
 			connection: c,
 		}
 
+		handler.init()
+
 		node.mutexStatus.Lock()
 
 		node.connections[reqId] = &handler

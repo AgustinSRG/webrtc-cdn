@@ -90,6 +90,16 @@ func (relay *WRTC_Relay) run() {
 		}
 	})
 
+	peerConnection.OnICECandidate(func(i *webrtc.ICECandidate) {
+		msg := make(map[string]string)
+		msg["type"] = "CANDIDATE"
+		msg["src"] = relay.node.id
+		msg["dst"] = relay.remoteNodeId
+		msg["sid"] = relay.sid
+		msg["sdp"] = i.ToJSON().Candidate
+		relay.node.sendRedisMessage(relay.remoteNodeId, &msg)
+	})
+
 	peerConnection.OnConnectionStateChange(func(state webrtc.PeerConnectionState) {
 		if state == webrtc.PeerConnectionStateClosed || state == webrtc.PeerConnectionStateFailed {
 			relay.onClose()

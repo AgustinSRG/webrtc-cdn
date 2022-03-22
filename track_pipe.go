@@ -25,3 +25,17 @@ func pipeTrack(remoteTrack *webrtc.TrackRemote, localTrack *webrtc.TrackLocalSta
 		}
 	}
 }
+
+const SENDER_READ_BUFFER_LENGTH = 1500
+
+// Read incoming RTCP packets
+// Before these packets are returned they are processed by interceptors. For things
+// like NACK this needs to be called.
+func readPacketsFromRTPSender(sender *webrtc.RTPSender) {
+	rtcpBuf := make([]byte, SENDER_READ_BUFFER_LENGTH)
+	for {
+		if _, _, rtcpErr := sender.Read(rtcpBuf); rtcpErr != nil {
+			return
+		}
+	}
+}
