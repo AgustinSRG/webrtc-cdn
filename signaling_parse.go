@@ -58,8 +58,10 @@ func (s SignalingMessage) serialize() string {
 	var raw string
 	raw = strings.ToUpper(s.method) + "\n"
 
-	for key, val := range s.params {
-		raw += key + ":" + val + "\n"
+	if s.params != nil {
+		for key, val := range s.params {
+			raw += key + ":" + val + "\n"
+		}
 	}
 
 	if s.body != "" {

@@ -66,6 +66,8 @@ func (node *WebRTC_CDN_Node) init() {
 	node.reqCount = 0
 }
 
+// Request IDs
+
 func (node *WebRTC_CDN_Node) getRequestID() uint64 {
 	node.mutexReqCount.Lock()
 	defer node.mutexReqCount.Unlock()
@@ -74,6 +76,8 @@ func (node *WebRTC_CDN_Node) getRequestID() uint64 {
 
 	return node.reqCount
 }
+
+// IP LIMIT
 
 func (node *WebRTC_CDN_Node) AddIP(ip string) bool {
 	node.mutexIpCount.Lock()
@@ -134,6 +138,8 @@ func (node *WebRTC_CDN_Node) RemoveIP(ip string) {
 	}
 }
 
+// REDIS (inter-node)
+
 func (node *WebRTC_CDN_Node) receiveRedisMessage(msg string) {
 	msgData := map[string]string{}
 
@@ -175,6 +181,8 @@ func (node *WebRTC_CDN_Node) sendRedisMessage(channel string, msg *map[string]st
 		LogDebug("[REDIS] [SENT] Channel: " + channel + " | Message: " + string(b))
 	}
 }
+
+// HTTP / HTTPS Servers (SIGNALING)
 
 func (node *WebRTC_CDN_Node) runHTTPSecureServer(wg *sync.WaitGroup) {
 	defer func() {
@@ -320,6 +328,8 @@ func (node *WebRTC_CDN_Node) ServeHTTP(w http.ResponseWriter, req *http.Request)
 		fmt.Fprintf(w, "WebRTC-CDN Signaling Server. Connect to /ws for signaling")
 	}
 }
+
+// CLOSE
 
 func (node *WebRTC_CDN_Node) onClose(id uint64) {
 	node.mutexStatus.Lock()

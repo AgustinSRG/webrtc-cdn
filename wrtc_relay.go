@@ -18,8 +18,6 @@ type WRTC_Relay struct {
 	peerConnection *webrtc.PeerConnection
 	statusMutex    *sync.Mutex
 
-	connections map[uint64]*Connection_Handler
-
 	hasAudio bool
 	hasVideo bool
 
@@ -30,8 +28,6 @@ type WRTC_Relay struct {
 func (relay *WRTC_Relay) init() {
 	relay.closed = false
 	relay.statusMutex = &sync.Mutex{}
-
-	relay.connections = make(map[uint64]*Connection_Handler)
 }
 
 func (relay *WRTC_Relay) run() {
@@ -84,9 +80,6 @@ func (relay *WRTC_Relay) run() {
 		if (!relay.hasAudio || relay.localTrackAudio != nil) && (!relay.hasVideo || relay.localTrackVideo != nil) {
 			// Received all the tracks
 
-			for _, con := range relay.connections {
-				con.onTracksReceived(relay.sid, relay.localTrackVideo, relay.localTrackAudio)
-			}
 		}
 	})
 
