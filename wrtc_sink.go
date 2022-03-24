@@ -146,3 +146,6 @@ func (sink *WRTC_Sink) onClose() {
 
 	// Remove all the linked connections
 }
+
+func (sink *WRTC_Sink) close() {
+}

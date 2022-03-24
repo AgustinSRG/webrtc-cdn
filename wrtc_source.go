@@ -15,6 +15,7 @@ type WRTC_Source struct {
 	sid       string
 	node      *WebRTC_CDN_Node
 
+	ready  bool
 	closed bool
 
 	peerConnection *webrtc.PeerConnection
@@ -31,21 +32,30 @@ type WRTC_Source struct {
 
 func (source *WRTC_Source) init() {
 	source.closed = false
+	source.ready = false
 	source.statusMutex = &sync.Mutex{}
 }
 
 func (source *WRTC_Source) run() {
 	peerConnectionConfig := loadWebRTCConfig()
 
+	source.statusMutex.Lock()
+
 	// Create a new PeerConnection
 	peerConnection, err := webrtc.NewPeerConnection(peerConnectionConfig)
 	if err != nil {
+		source.statusMutex.Unlock()
 		LogError(err)
-		source.onClose()
+		source.close(true, false)
 		return
 	}
 
 	source.peerConnection = peerConnection
+
+	source.statusMutex.Unlock()
+
+	// Register source
+	source.node.registerSource(source)
 
 	peerConnection.OnTrack(func(remoteTrack *webrtc.TrackRemote, receiver *webrtc.RTPReceiver) {
 		source.statusMutex.Lock()
@@ -83,7 +93,7 @@ func (source *WRTC_Source) run() {
 
 		if (!source.hasAudio || source.localTrackAudio != nil) && (!source.hasVideo || source.localTrackVideo != nil) {
 			// Received all the tracks
-
+			source.onReady()
 		}
 	})
 
@@ -151,6 +161,18 @@ func (source *WRTC_Source) onAnswer(sdp string) {
 	}
 }
 
+func (source *WRTC_Source) onReady() {
+	source.statusMutex.Lock()
+
+	source.ready = true
+
+	source.statusMutex.Unlock()
+
+	source.node.onSourceReady(source)
+}
+
+// CLOSE
+
 func (source *WRTC_Source) onClose() {
 	source.statusMutex.Lock()
 	defer source.statusMutex.Unlock()
@@ -160,5 +182,33 @@ func (source *WRTC_Source) onClose() {
 	}
 	source.closed = true
 
-	// Remove all the linked connections
+	// Send close message to the connection
+	source.connection.sendSourceClose(source.requestId, source.sid)
+
+	// Deregister source
+	source.node.onSourceClosed(source)
+}
+
+func (source *WRTC_Source) close(notifyConnection bool, deregister bool) {
+	source.statusMutex.Lock()
+	defer source.statusMutex.Unlock()
+
+	if source.closed {
+		return
+	}
+
+	source.closed = true
+	if source.peerConnection != nil {
+		source.peerConnection.Close()
+	}
+
+	// Send close message to the connection
+	if notifyConnection {
+		source.connection.sendSourceClose(source.requestId, source.sid)
+	}
+
+	// Deregister source
+	if deregister {
+		source.node.onSourceClosed(source)
+	}
 }

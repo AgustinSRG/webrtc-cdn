@@ -22,11 +22,12 @@ import (
 
 type WebRTC_CDN_Node struct {
 	// Config
-	id          string
-	redisClient *redis.Client
-	upgrader    *websocket.Upgrader
-	reqCount    uint64
-	ipLimit     uint32
+	id           string
+	redisClient  *redis.Client
+	upgrader     *websocket.Upgrader
+	reqCount     uint64
+	ipLimit      uint32
+	requestLimit uint32
 
 	// Sync
 	mutexReqCount  *sync.Mutex
@@ -40,6 +41,8 @@ type WebRTC_CDN_Node struct {
 
 	sources map[string]*WRTC_Source
 	relays  map[string]*WRTC_Relay
+
+	sinks map[uint64]*WRTC_Sink
 }
 
 func (node *WebRTC_CDN_Node) init() {
@@ -52,6 +55,9 @@ func (node *WebRTC_CDN_Node) init() {
 	// Status
 	node.connections = make(map[uint64]*Connection_Handler)
 	node.ipCount = make(map[string]uint32)
+	node.sources = make(map[string]*WRTC_Source)
+	node.relays = make(map[string]*WRTC_Relay)
+	node.sinks = make(map[uint64]*WRTC_Sink)
 
 	// Config
 	node.ipLimit = 4
@@ -64,6 +70,15 @@ func (node *WebRTC_CDN_Node) init() {
 	}
 
 	node.reqCount = 0
+
+	node.requestLimit = 100
+	custom_req_limit := os.Getenv("MAX_REQUESTS_PER_SOCKET")
+	if custom_req_limit != "" {
+		cil, e := strconv.Atoi(custom_req_limit)
+		if e != nil {
+			node.requestLimit = uint32(cil)
+		}
+	}
 }
 
 // Request IDs
@@ -336,4 +351,33 @@ func (node *WebRTC_CDN_Node) onClose(id uint64) {
 	defer node.mutexStatus.Unlock()
 
 	delete(node.connections, id)
+}
+
+// SOURCES
+
+func (node *WebRTC_CDN_Node) registerSource(source *WRTC_Source) {
+	node.mutexStatus.Lock()
+	defer node.mutexStatus.Unlock()
+
+	if node.sources[source.sid] != nil {
+		// Close the old source
+		s := node.sources[source.sid]
+		s.close(true, false)
+	}
+
+	node.sources[source.sid] = source
+}
+
+func (node *WebRTC_CDN_Node) onSourceReady(source *WRTC_Source) {
+	node.mutexStatus.Lock()
+	defer node.mutexStatus.Unlock()
+
+}
+
+func (node *WebRTC_CDN_Node) onSourceClosed(source *WRTC_Source) {
+	node.mutexStatus.Lock()
+	defer node.mutexStatus.Unlock()
+
+	delete(node.sources, source.sid)
+
 }

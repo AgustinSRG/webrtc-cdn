@@ -23,6 +23,7 @@ func parseSignalingMessage(raw string) SignalingMessage {
 	}
 
 	var isBody bool = false
+	var firstLineBody bool = true
 
 	for i := 1; i < len(lines); i++ {
 		line := lines[i]
@@ -35,8 +36,9 @@ func parseSignalingMessage(raw string) SignalingMessage {
 
 		if isBody {
 			// Body
-			if msg.body == "" {
+			if firstLineBody {
 				msg.body = line
+				firstLineBody = false
 			} else {
 				msg.body += "\n" + line
 			}

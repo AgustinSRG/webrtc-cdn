@@ -3,6 +3,7 @@
 package main
 
 import (
+	"strings"
 	"sync"
 	"time"
 
@@ -30,7 +31,7 @@ type Connection_Handler struct {
 	statusMutex  *sync.Mutex
 
 	requests     map[string]int
-	requestCount int
+	requestCount uint32
 
 	sources map[string]*WRTC_Source
 	sinks   map[string]*WRTC_Sink
@@ -140,7 +141,61 @@ func (h *Connection_Handler) sendHeartbeatMessages() {
 // PUBLISH
 
 func (h *Connection_Handler) receivePublishMessage(msg SignalingMessage) {
+	requestId := msg.params["request-id"]
+	streamId := msg.params["stream-id"]
+	streamType := strings.ToUpper(msg.params["stream-type"])
 
+	if len(requestId) == 0 || len(requestId) > 255 {
+		h.sendErrorMessage("INVALID_REQUEST_ID", "Request ID must be an string from 1 to 255 characters.")
+		return
+	}
+
+	if len(streamId) == 0 || len(streamId) > 255 {
+		h.sendErrorMessage("INVALID_STREAM_ID", "Stream ID must be an string from 1 to 255 characters.")
+		return
+	}
+
+	hasAudio := true
+	hasVideo := true
+
+	if streamType == "AUDIO" {
+		hasVideo = false
+	} else if streamType == "VIDEO" {
+		hasAudio = false
+	}
+
+	source := WRTC_Source{
+		requestId:  requestId,
+		sid:        streamId,
+		node:       h.node,
+		hasAudio:   hasAudio,
+		hasVideo:   hasVideo,
+		connection: h,
+	}
+
+	source.init()
+
+	// Register the source
+	func() {
+		h.statusMutex.Lock()
+		defer h.statusMutex.Unlock()
+
+		if h.requests[requestId] != 0 {
+			h.sendErrorMessage("PROTOCOL_ERROR", "You reused the same request ID for 2 different requests.")
+			return
+		}
+
+		if h.requestCount > h.node.requestLimit {
+			h.sendErrorMessage("LIMIT_REQUESTS", "Too many requests on the same socket.")
+			return
+		}
+
+		h.requestCount++
+		h.requests[requestId] = REQUEST_TYPE_PUBLISH
+		h.sources[requestId] = &source
+
+		go source.run()
+	}()
 }
 
 // PLAY
@@ -152,19 +207,66 @@ func (h *Connection_Handler) receivePlayMessage(msg SignalingMessage) {
 // ANSWER
 
 func (h *Connection_Handler) receiveAnswerMessage(msg SignalingMessage) {
+	requestId := msg.params["request-id"]
 
+	func() {
+		h.statusMutex.Lock()
+		defer h.statusMutex.Unlock()
+
+		if h.requests[requestId] == 0 {
+			return // IGNORE
+		} else if h.requests[requestId] == REQUEST_TYPE_PUBLISH {
+			h.sources[requestId].onAnswer(msg.body)
+		} else if h.requests[requestId] == REQUEST_TYPE_PLAY {
+			h.sinks[requestId].onAnswer(msg.body)
+		}
+	}()
 }
 
 // CANDIDATE
 
 func (h *Connection_Handler) receiveCandidateMessage(msg SignalingMessage) {
+	requestId := msg.params["request-id"]
 
+	func() {
+		h.statusMutex.Lock()
+		defer h.statusMutex.Unlock()
+
+		if h.requests[requestId] == 0 {
+			return // IGNORE
+		} else if h.requests[requestId] == REQUEST_TYPE_PUBLISH {
+			h.sources[requestId].onICECandidate(msg.body)
+		} else if h.requests[requestId] == REQUEST_TYPE_PLAY {
+			h.sinks[requestId].onICECandidate(msg.body)
+		}
+	}()
 }
 
 // CLOSE
 
 func (h *Connection_Handler) receiveCloseMessage(msg SignalingMessage) {
+	requestId := msg.params["request-id"]
 
+	func() {
+		h.statusMutex.Lock()
+		defer h.statusMutex.Unlock()
+
+		if h.requests[requestId] == 0 {
+			return // IGNORE
+		} else if h.requests[requestId] == REQUEST_TYPE_PUBLISH {
+			h.sources[requestId].close(false, true)
+
+			delete(h.sources, requestId)
+			delete(h.requests, requestId)
+			h.requestCount--
+		} else if h.requests[requestId] == REQUEST_TYPE_PLAY {
+			h.sinks[requestId].close()
+
+			delete(h.sinks, requestId)
+			delete(h.requests, requestId)
+			h.requestCount--
+		}
+	}()
 }
 
 // SEND
@@ -174,6 +276,19 @@ func (h *Connection_Handler) send(msg SignalingMessage) {
 	defer h.sendingMutex.Unlock()
 
 	h.connection.WriteMessage(websocket.TextMessage, []byte(msg.serialize()))
+}
+
+func (h *Connection_Handler) sendErrorMessage(code string, errMsg string) {
+	msg := SignalingMessage{
+		method: "ERROR",
+		params: make(map[string]string),
+		body:   "",
+	}
+
+	msg.params["Error-Code"] = code
+	msg.params["Error-Message"] = errMsg
+
+	h.send(msg)
 }
 
 // LOG
@@ -208,6 +323,28 @@ func (h *Connection_Handler) sendICECandidate(reqId string, sid string, sdp stri
 		method: "CANDIDATE",
 		params: make(map[string]string),
 		body:   sdp,
+	}
+
+	msg.params["Request-ID"] = reqId
+	msg.params["Stream-ID"] = sid
+
+	h.send(msg)
+}
+
+// SEND CLOSE
+
+func (h *Connection_Handler) sendSourceClose(reqId string, sid string) {
+	h.sendingMutex.Lock()
+	defer h.sendingMutex.Unlock()
+
+	delete(h.sources, reqId)
+	delete(h.requests, reqId)
+	h.requestCount--
+
+	msg := SignalingMessage{
+		method: "CLOSE",
+		params: make(map[string]string),
+		body:   "",
 	}
 
 	msg.params["Request-ID"] = reqId
