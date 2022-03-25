@@ -201,7 +201,52 @@ func (h *Connection_Handler) receivePublishMessage(msg SignalingMessage) {
 // PLAY
 
 func (h *Connection_Handler) receivePlayMessage(msg SignalingMessage) {
+	requestId := msg.params["request-id"]
+	streamId := msg.params["stream-id"]
 
+	if len(requestId) == 0 || len(requestId) > 255 {
+		h.sendErrorMessage("INVALID_REQUEST_ID", "Request ID must be an string from 1 to 255 characters.")
+		return
+	}
+
+	if len(streamId) == 0 || len(streamId) > 255 {
+		h.sendErrorMessage("INVALID_STREAM_ID", "Stream ID must be an string from 1 to 255 characters.")
+		return
+	}
+
+	sinkId := h.node.getSinkID()
+
+	sink := WRTC_Sink{
+		sinkId:     sinkId,
+		requestId:  requestId,
+		sid:        streamId,
+		node:       h.node,
+		connection: h,
+	}
+
+	sink.init()
+
+	// Register the sink
+	func() {
+		h.statusMutex.Lock()
+		defer h.statusMutex.Unlock()
+
+		if h.requests[requestId] != 0 {
+			h.sendErrorMessage("PROTOCOL_ERROR", "You reused the same request ID for 2 different requests.")
+			return
+		}
+
+		if h.requestCount > h.node.requestLimit {
+			h.sendErrorMessage("LIMIT_REQUESTS", "Too many requests on the same socket.")
+			return
+		}
+
+		h.requestCount++
+		h.requests[requestId] = REQUEST_TYPE_PUBLISH
+		h.sinks[requestId] = &sink
+
+		go sink.run()
+	}()
 }
 
 // ANSWER

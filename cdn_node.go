@@ -26,11 +26,13 @@ type WebRTC_CDN_Node struct {
 	redisClient  *redis.Client
 	upgrader     *websocket.Upgrader
 	reqCount     uint64
+	sinkCount    uint64
 	ipLimit      uint32
 	requestLimit uint32
 
 	// Sync
 	mutexReqCount  *sync.Mutex
+	mutexSinkCount *sync.Mutex
 	mutexIpCount   *sync.Mutex
 	mutexRedisSend *sync.Mutex
 	mutexStatus    *sync.Mutex
@@ -42,7 +44,7 @@ type WebRTC_CDN_Node struct {
 	sources map[string]*WRTC_Source
 	relays  map[string]*WRTC_Relay
 
-	sinks map[uint64]*WRTC_Sink
+	sinks map[string]map[uint64]*WRTC_Sink
 }
 
 func (node *WebRTC_CDN_Node) init() {
@@ -51,13 +53,14 @@ func (node *WebRTC_CDN_Node) init() {
 	node.mutexIpCount = &sync.Mutex{}
 	node.mutexRedisSend = &sync.Mutex{}
 	node.mutexStatus = &sync.Mutex{}
+	node.mutexSinkCount = &sync.Mutex{}
 
 	// Status
 	node.connections = make(map[uint64]*Connection_Handler)
 	node.ipCount = make(map[string]uint32)
 	node.sources = make(map[string]*WRTC_Source)
 	node.relays = make(map[string]*WRTC_Relay)
-	node.sinks = make(map[uint64]*WRTC_Sink)
+	node.sinks = make(map[string]map[uint64]*WRTC_Sink)
 
 	// Config
 	node.ipLimit = 4
@@ -70,6 +73,7 @@ func (node *WebRTC_CDN_Node) init() {
 	}
 
 	node.reqCount = 0
+	node.sinkCount = 0
 
 	node.requestLimit = 100
 	custom_req_limit := os.Getenv("MAX_REQUESTS_PER_SOCKET")
@@ -90,6 +94,17 @@ func (node *WebRTC_CDN_Node) getRequestID() uint64 {
 	node.reqCount++
 
 	return node.reqCount
+}
+
+// SINK IDs
+
+func (node *WebRTC_CDN_Node) getSinkID() uint64 {
+	node.mutexSinkCount.Lock()
+	defer node.mutexSinkCount.Unlock()
+
+	node.sinkCount++
+
+	return node.sinkCount
 }
 
 // IP LIMIT
@@ -372,6 +387,17 @@ func (node *WebRTC_CDN_Node) onSourceReady(source *WRTC_Source) {
 	node.mutexStatus.Lock()
 	defer node.mutexStatus.Unlock()
 
+	source.ready = true
+
+	// Notify sinks
+
+	if node.sinks[source.sid] != nil {
+		for _, sink := range node.sinks[source.sid] {
+			sink.onTracksReady(source.localTrackVideo, source.localTrackAudio)
+		}
+	}
+
+	// Notify senders
 }
 
 func (node *WebRTC_CDN_Node) onSourceClosed(source *WRTC_Source) {
@@ -380,4 +406,45 @@ func (node *WebRTC_CDN_Node) onSourceClosed(source *WRTC_Source) {
 
 	delete(node.sources, source.sid)
 
+}
+
+// SINKS
+
+func (node *WebRTC_CDN_Node) registerSink(sink *WRTC_Sink) {
+	node.mutexStatus.Lock()
+	defer node.mutexStatus.Unlock()
+
+	if node.sinks[sink.sid] == nil {
+		node.sinks[sink.sid] = make(map[uint64]*WRTC_Sink)
+	}
+
+	node.sinks[sink.sid][sink.sinkId] = sink
+
+	// Is there a ready source for it?
+
+	if node.sources[sink.sid] != nil && node.sources[sink.sid].ready {
+		sink.onTracksReady(node.sources[sink.sid].localTrackVideo, node.sources[sink.sid].localTrackAudio)
+		return
+	}
+
+	// Is there are relay for it?
+}
+
+func (node *WebRTC_CDN_Node) removeSink(sink *WRTC_Sink) {
+	node.mutexStatus.Lock()
+	defer node.mutexStatus.Unlock()
+
+	if node.sinks[sink.sid] == nil {
+		return
+	}
+
+	if node.sinks[sink.sid][sink.sinkId] == nil {
+		return
+	}
+
+	delete(node.sinks[sink.sid], sink.sinkId)
+
+	if len(node.sinks[sink.sid]) == 0 {
+		delete(node.sinks, sink.sid)
+	}
 }

@@ -93,7 +93,7 @@ func (source *WRTC_Source) run() {
 
 		if (!source.hasAudio || source.localTrackAudio != nil) && (!source.hasVideo || source.localTrackVideo != nil) {
 			// Received all the tracks
-			source.onReady()
+			source.node.onSourceReady(source)
 		}
 	})
 
@@ -159,16 +159,6 @@ func (source *WRTC_Source) onAnswer(sdp string) {
 		LogError(err)
 		return
 	}
-}
-
-func (source *WRTC_Source) onReady() {
-	source.statusMutex.Lock()
-
-	source.ready = true
-
-	source.statusMutex.Unlock()
-
-	source.node.onSourceReady(source)
 }
 
 // CLOSE

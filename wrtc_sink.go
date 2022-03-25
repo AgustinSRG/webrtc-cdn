@@ -4,17 +4,17 @@
 package main
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/pion/webrtc/v3"
 )
 
 type WRTC_Sink struct {
+	sinkId    uint64
 	requestId string
 	sid       string
 	node      *WebRTC_CDN_Node
-
-	closed bool
 
 	peerConnection *webrtc.PeerConnection
 	statusMutex    *sync.Mutex
@@ -29,8 +29,12 @@ type WRTC_Sink struct {
 }
 
 func (sink *WRTC_Sink) init() {
-	sink.closed = false
 	sink.statusMutex = &sync.Mutex{}
+}
+
+func (sink *WRTC_Sink) run() {
+	// Register the sink
+	sink.node.registerSink(sink)
 }
 
 // Receive the tracks from local source or relay
@@ -43,6 +47,10 @@ func (sink *WRTC_Sink) onTracksReady(localTrackVideo *webrtc.TrackLocalStaticRTP
 
 	sink.hasAudio = localTrackAudio != nil
 	sink.hasVideo = localTrackVideo != nil
+
+	if sink.peerConnection != nil {
+		sink.peerConnection.Close()
+	}
 
 	go sink.runAfterTracksReady()
 }
@@ -58,7 +66,6 @@ func (sink *WRTC_Sink) runAfterTracksReady() {
 	peerConnection, err := webrtc.NewPeerConnection(peerConnectionConfig)
 	if err != nil {
 		LogError(err)
-		sink.onClose()
 		return
 	}
 
@@ -70,7 +77,9 @@ func (sink *WRTC_Sink) runAfterTracksReady() {
 
 	peerConnection.OnConnectionStateChange(func(state webrtc.PeerConnectionState) {
 		if state == webrtc.PeerConnectionStateClosed || state == webrtc.PeerConnectionStateFailed {
-			sink.onClose()
+			sink.connection.logDebug("Sink Disconnected | sinkId: " + fmt.Sprint(sink.sinkId) + " | SreamID: " + sink.sid + " | RequestID: " + sink.requestId)
+		} else if state == webrtc.PeerConnectionStateConnected {
+			sink.connection.logDebug("Sink Connected | sinkId: " + fmt.Sprint(sink.sinkId) + " | SreamID: " + sink.sid + " | RequestID: " + sink.requestId)
 		}
 	})
 
@@ -78,7 +87,6 @@ func (sink *WRTC_Sink) runAfterTracksReady() {
 		audioSender, err := peerConnection.AddTrack(sink.localTrackAudio)
 		if err != nil {
 			LogError(err)
-			sink.onClose()
 			return
 		}
 
@@ -89,7 +97,6 @@ func (sink *WRTC_Sink) runAfterTracksReady() {
 		videoSender, err := peerConnection.AddTrack(sink.localTrackVideo)
 		if err != nil {
 			LogError(err)
-			sink.onClose()
 			return
 		}
 
@@ -115,6 +122,13 @@ func (sink *WRTC_Sink) runAfterTracksReady() {
 }
 
 func (sink *WRTC_Sink) onICECandidate(sdp string) {
+	sink.statusMutex.Lock()
+	defer sink.statusMutex.Unlock()
+
+	if sink.peerConnection == nil {
+		return
+	}
+
 	err := sink.peerConnection.AddICECandidate(webrtc.ICECandidateInit{
 		Candidate: sdp,
 	})
@@ -124,6 +138,13 @@ func (sink *WRTC_Sink) onICECandidate(sdp string) {
 }
 
 func (sink *WRTC_Sink) onAnswer(sdp string) {
+	sink.statusMutex.Lock()
+	defer sink.statusMutex.Unlock()
+
+	if sink.peerConnection == nil {
+		return
+	}
+
 	// Set the remote SessionDescription
 	err := sink.peerConnection.SetRemoteDescription(webrtc.SessionDescription{
 		Type: webrtc.SDPTypeAnswer,
@@ -135,17 +156,13 @@ func (sink *WRTC_Sink) onAnswer(sdp string) {
 	}
 }
 
-func (sink *WRTC_Sink) onClose() {
+func (sink *WRTC_Sink) close() {
 	sink.statusMutex.Lock()
 	defer sink.statusMutex.Unlock()
 
-	if sink.closed {
-		return
+	if sink.peerConnection != nil {
+		sink.peerConnection.Close()
 	}
-	sink.closed = true
 
-	// Remove all the linked connections
-}
-
-func (sink *WRTC_Sink) close() {
+	sink.node.removeSink(sink)
 }
