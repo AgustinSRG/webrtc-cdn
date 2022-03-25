@@ -10,30 +10,41 @@ import (
 	"github.com/pion/webrtc/v3"
 )
 
+// WRTC_Sink - This data structure contains the status data
+// of a sink connection (Node -> Client)
+// The sink registers itself into the node, who notifies it
+// when there are new tracks available
+// The sink retries the connection is it's closed
+// The sink will replace the existing connection with a new one if the source is replaced
 type WRTC_Sink struct {
-	sinkId    uint64
-	requestId string
-	sid       string
-	node      *WebRTC_CDN_Node
+	sinkId    uint64 // Unique ID for the sink in the node
+	requestId string // Unique request ID in the associated the websocket connection
+	sid       string // Requested stream ID to pull
 
-	peerConnection *webrtc.PeerConnection
-	statusMutex    *sync.Mutex
+	node       *WebRTC_CDN_Node    // Reference to the node
+	connection *Connection_Handler // Reference to the websocket connection
 
-	connection *Connection_Handler
+	closed bool // True when the sink is no longer active, prevent reconnection
 
-	hasAudio bool
-	hasVideo bool
+	peerConnection *webrtc.PeerConnection // WebRTC Peer Connection
 
-	localTrackVideo *webrtc.TrackLocalStaticRTP
-	localTrackAudio *webrtc.TrackLocalStaticRTP
+	statusMutex *sync.Mutex // Mutex to control access to the struct
+
+	hasAudio        bool
+	localTrackAudio *webrtc.TrackLocalStaticRTP // Audio track
+
+	hasVideo        bool
+	localTrackVideo *webrtc.TrackLocalStaticRTP // Video track
 }
 
+// Initialize
 func (sink *WRTC_Sink) init() {
 	sink.statusMutex = &sync.Mutex{}
+	sink.closed = false
 }
 
+// Registers the sink into the node to access the requested stream
 func (sink *WRTC_Sink) run() {
-	// Register the sink
 	sink.node.registerSink(sink)
 }
 
@@ -42,25 +53,37 @@ func (sink *WRTC_Sink) onTracksReady(localTrackVideo *webrtc.TrackLocalStaticRTP
 	sink.statusMutex.Lock()
 	defer sink.statusMutex.Unlock()
 
+	// Set video track
 	sink.localTrackVideo = localTrackVideo
-	sink.localTrackAudio = localTrackAudio
-
-	sink.hasAudio = localTrackAudio != nil
 	sink.hasVideo = localTrackVideo != nil
 
+	// Set audio track
+	sink.localTrackAudio = localTrackAudio
+	sink.hasAudio = localTrackAudio != nil
+
+	// If there is an existing connection, close it
 	if sink.peerConnection != nil {
+		sink.peerConnection.OnICECandidate(nil)
+		sink.peerConnection.OnConnectionStateChange(nil)
 		sink.peerConnection.Close()
 	}
 
+	sink.peerConnection = nil
+
+	// Run the connection process
 	go sink.runAfterTracksReady()
 }
 
-// Start the peer connection
+// Starts the peer connection, generates the offer and sets up the event handlers
 func (sink *WRTC_Sink) runAfterTracksReady() {
 	sink.statusMutex.Lock()
 	defer sink.statusMutex.Unlock()
 
-	peerConnectionConfig := loadWebRTCConfig()
+	if !sink.hasVideo && !sink.hasAudio {
+		return // Nothing to do
+	}
+
+	peerConnectionConfig := loadWebRTCConfig() // Load config
 
 	// Create a new PeerConnection
 	peerConnection, err := webrtc.NewPeerConnection(peerConnectionConfig)
@@ -71,18 +94,22 @@ func (sink *WRTC_Sink) runAfterTracksReady() {
 
 	sink.peerConnection = peerConnection
 
+	// ICE candidate handler
 	peerConnection.OnICECandidate(func(i *webrtc.ICECandidate) {
 		sink.connection.sendICECandidate(sink.requestId, sink.sid, i.ToJSON().Candidate)
 	})
 
+	// Connection status handler
 	peerConnection.OnConnectionStateChange(func(state webrtc.PeerConnectionState) {
 		if state == webrtc.PeerConnectionStateClosed || state == webrtc.PeerConnectionStateFailed {
 			sink.connection.logDebug("Sink Disconnected | sinkId: " + fmt.Sprint(sink.sinkId) + " | SreamID: " + sink.sid + " | RequestID: " + sink.requestId)
+			sink.reconnect() // If the connection fails, retry it
 		} else if state == webrtc.PeerConnectionStateConnected {
 			sink.connection.logDebug("Sink Connected | sinkId: " + fmt.Sprint(sink.sinkId) + " | SreamID: " + sink.sid + " | RequestID: " + sink.requestId)
 		}
 	})
 
+	// Include the audio track
 	if sink.hasAudio {
 		audioSender, err := peerConnection.AddTrack(sink.localTrackAudio)
 		if err != nil {
@@ -93,6 +120,7 @@ func (sink *WRTC_Sink) runAfterTracksReady() {
 		go readPacketsFromRTPSender(audioSender)
 	}
 
+	// Include the video track
 	if sink.hasVideo {
 		videoSender, err := peerConnection.AddTrack(sink.localTrackVideo)
 		if err != nil {
@@ -110,7 +138,7 @@ func (sink *WRTC_Sink) runAfterTracksReady() {
 		return
 	}
 
-	// Send to the connection
+	// Send OFFER to the client
 	sink.connection.sendOffer(sink.requestId, sink.sid, offer.SDP)
 
 	// Sets the LocalDescription, and starts our UDP listeners
@@ -121,6 +149,7 @@ func (sink *WRTC_Sink) runAfterTracksReady() {
 	}
 }
 
+// Call when an ICE Candidate message is received from the client via websocket
 func (sink *WRTC_Sink) onICECandidate(sdp string) {
 	sink.statusMutex.Lock()
 	defer sink.statusMutex.Unlock()
@@ -132,11 +161,13 @@ func (sink *WRTC_Sink) onICECandidate(sdp string) {
 	err := sink.peerConnection.AddICECandidate(webrtc.ICECandidateInit{
 		Candidate: sdp,
 	})
+
 	if err != nil {
 		LogError(err)
 	}
 }
 
+// Call when the ANSWER is received from the client via websocket
 func (sink *WRTC_Sink) onAnswer(sdp string) {
 	sink.statusMutex.Lock()
 	defer sink.statusMutex.Unlock()
@@ -150,19 +181,41 @@ func (sink *WRTC_Sink) onAnswer(sdp string) {
 		Type: webrtc.SDPTypeAnswer,
 		SDP:  sdp,
 	})
+
 	if err != nil {
 		LogError(err)
-		return
 	}
 }
 
+// Reconnect if the peer connection is closed, but the sink is still active
+func (sink *WRTC_Sink) reconnect() {
+	sink.statusMutex.Lock()
+	defer sink.statusMutex.Unlock()
+
+	sink.peerConnection = nil
+
+	if !sink.closed {
+		go sink.runAfterTracksReady()
+	}
+}
+
+// Close the sink
 func (sink *WRTC_Sink) close() {
 	sink.statusMutex.Lock()
 	defer sink.statusMutex.Unlock()
 
+	sink.closed = true
+
 	if sink.peerConnection != nil {
+		sink.peerConnection.OnICECandidate(nil)
+		sink.peerConnection.OnConnectionStateChange(nil)
 		sink.peerConnection.Close()
 	}
 
+	sink.peerConnection = nil
+	sink.hasAudio = false
+	sink.hasVideo = false
+	sink.localTrackAudio = nil
+	sink.localTrackVideo = nil
 	sink.node.removeSink(sink)
 }
