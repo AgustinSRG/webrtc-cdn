@@ -145,6 +145,7 @@ func (sender *WRTC_Source_Sender) onClose() {
 	sender.peerConnection = nil
 
 	// Remove the sender from the node
+	sender.node.onSenderClosed(sender)
 }
 
 // SEND

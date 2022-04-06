@@ -9,11 +9,14 @@ import (
 )
 
 type WRTC_Relay struct {
-	sid          string
-	remoteNodeId string
-	node         *WebRTC_CDN_Node
+	sid      string // WebRTC stream ID
+	remoteId string // ID of the remote node sending it
+
+	node *WebRTC_CDN_Node
 
 	closed bool
+
+	ready bool
 
 	peerConnection *webrtc.PeerConnection
 	statusMutex    *sync.Mutex
@@ -27,17 +30,49 @@ type WRTC_Relay struct {
 
 func (relay *WRTC_Relay) init() {
 	relay.closed = false
+	relay.ready = false
 	relay.statusMutex = &sync.Mutex{}
 }
 
-func (relay *WRTC_Relay) run() {
-	peerConnectionConfig := loadWebRTCConfig()
+func (relay *WRTC_Relay) onICECandidate(sdp string) {
+	relay.statusMutex.Lock()
+	defer relay.statusMutex.Unlock()
+
+	if relay.peerConnection == nil {
+		return
+	}
+
+	err := relay.peerConnection.AddICECandidate(webrtc.ICECandidateInit{
+		Candidate: sdp,
+	})
+
+	if err != nil {
+		LogError(err)
+	}
+}
+
+func (relay *WRTC_Relay) onOffer(sdp string, hasVideo bool, hasAudio bool) {
+	relay.statusMutex.Lock()
+	defer relay.statusMutex.Unlock()
+
+	relay.hasVideo = hasVideo
+	relay.hasAudio = hasAudio
+
+	// Clear old peer connection
+	if relay.peerConnection != nil {
+		relay.peerConnection.OnICECandidate(nil)
+		relay.peerConnection.OnConnectionStateChange(nil)
+		relay.peerConnection.OnTrack(nil)
+		relay.peerConnection.Close()
+	}
+
+	peerConnectionConfig := loadWebRTCConfig() // Load WebRTC configuration
 
 	// Create a new PeerConnection
 	peerConnection, err := webrtc.NewPeerConnection(peerConnectionConfig)
 	if err != nil {
 		LogError(err)
-		relay.onClose()
+		go relay.onClose()
 		return
 	}
 
@@ -78,40 +113,26 @@ func (relay *WRTC_Relay) run() {
 		}
 
 		if (!relay.hasAudio || relay.localTrackAudio != nil) && (!relay.hasVideo || relay.localTrackVideo != nil) {
-			// Received all the tracks
-
+			// Received all the tracks, the relay is now ready
+			relay.node.onRelayReady(relay)
 		}
 	})
 
 	peerConnection.OnICECandidate(func(i *webrtc.ICECandidate) {
-		msg := make(map[string]string)
-		msg["type"] = "CANDIDATE"
-		msg["src"] = relay.node.id
-		msg["dst"] = relay.remoteNodeId
-		msg["sid"] = relay.sid
-		msg["sdp"] = i.ToJSON().Candidate
-		relay.node.sendRedisMessage(relay.remoteNodeId, &msg)
+		relay.sendICECandidate(i.ToJSON().Candidate)
 	})
 
 	peerConnection.OnConnectionStateChange(func(state webrtc.PeerConnectionState) {
 		if state == webrtc.PeerConnectionStateClosed || state == webrtc.PeerConnectionStateFailed {
+			LogDebug("Source relay Disconnected | RemoteNode: " + relay.remoteId + " | SreamID: " + relay.sid)
 			relay.onClose()
+		} else if state == webrtc.PeerConnectionStateConnected {
+			LogDebug("Source relay Connected | RemoteNode: " + relay.remoteId + " | SreamID: " + relay.sid)
 		}
 	})
-}
 
-func (relay *WRTC_Relay) onICECandidate(sdp string) {
-	err := relay.peerConnection.AddICECandidate(webrtc.ICECandidateInit{
-		Candidate: sdp,
-	})
-	if err != nil {
-		LogError(err)
-	}
-}
-
-func (relay *WRTC_Relay) onOffer(sdp string) {
 	// Set the remote SessionDescription
-	err := relay.peerConnection.SetRemoteDescription(webrtc.SessionDescription{
+	err = relay.peerConnection.SetRemoteDescription(webrtc.SessionDescription{
 		Type: webrtc.SDPTypeOffer,
 		SDP:  sdp,
 	})
@@ -120,20 +141,12 @@ func (relay *WRTC_Relay) onOffer(sdp string) {
 		return
 	}
 
+	// Create SDP answer
 	answer, err := relay.peerConnection.CreateAnswer(nil)
 	if err != nil {
 		LogError(err)
 		return
 	}
-
-	// Send to the signaling system
-	msg := make(map[string]string)
-	msg["type"] = "ANSWER"
-	msg["src"] = relay.node.id
-	msg["dst"] = relay.remoteNodeId
-	msg["sid"] = relay.sid
-	msg["sdp"] = answer.SDP
-	relay.node.sendRedisMessage(relay.remoteNodeId, &msg)
 
 	// Sets the LocalDescription, and starts our UDP listeners
 	err = relay.peerConnection.SetLocalDescription(answer)
@@ -141,26 +154,71 @@ func (relay *WRTC_Relay) onOffer(sdp string) {
 		LogError(err)
 		return
 	}
+
+	// Send ANSWER to the signaling system
+	relay.sendAnswer(answer.SDP)
 }
 
-func (relay *WRTC_Relay) addConnection(con *Connection_Handler) {
-	relay.statusMutex.Lock()
-	defer relay.statusMutex.Unlock()
+func (relay *WRTC_Relay) sendICECandidate(sdp string) {
+	mp := make(map[string]string)
+
+	mp["type"] = "CANDIDATE"
+	mp["src"] = relay.node.id
+	mp["dst"] = relay.remoteId
+	mp["sid"] = relay.sid
+	mp["sdp"] = sdp
+
+	relay.node.sendRedisMessage(relay.remoteId, &mp)
 }
 
-func (relay *WRTC_Relay) removeConnection(id uint64) {
-	relay.statusMutex.Lock()
-	defer relay.statusMutex.Unlock()
+func (relay *WRTC_Relay) sendAnswer(sdp string) {
+	mp := make(map[string]string)
+
+	mp["type"] = "ANSWER"
+	mp["src"] = relay.node.id
+	mp["dst"] = relay.remoteId
+	mp["sid"] = relay.sid
+	mp["sdp"] = sdp
+
+	relay.node.sendRedisMessage(relay.remoteId, &mp)
 }
 
 func (relay *WRTC_Relay) onClose() {
 	relay.statusMutex.Lock()
 	defer relay.statusMutex.Unlock()
 
-	if relay.closed {
-		return
+	if relay.peerConnection != nil {
+		relay.peerConnection.OnICECandidate(nil)
+		relay.peerConnection.OnConnectionStateChange(nil)
+		relay.peerConnection.OnTrack(nil)
+		relay.peerConnection.Close()
 	}
+
+	relay.peerConnection = nil
+	relay.hasAudio = false
+	relay.hasVideo = false
+	relay.localTrackAudio = nil
+	relay.localTrackVideo = nil
+
+	relay.node.onRelayClosed(relay)
+}
+
+func (relay *WRTC_Relay) close() {
+	relay.statusMutex.Lock()
+	defer relay.statusMutex.Unlock()
+
 	relay.closed = true
 
-	// Remove all the linked connections
+	if relay.peerConnection != nil {
+		relay.peerConnection.OnICECandidate(nil)
+		relay.peerConnection.OnConnectionStateChange(nil)
+		relay.peerConnection.OnTrack(nil)
+		relay.peerConnection.Close()
+	}
+
+	relay.peerConnection = nil
+	relay.hasAudio = false
+	relay.hasVideo = false
+	relay.localTrackAudio = nil
+	relay.localTrackVideo = nil
 }

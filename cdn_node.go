@@ -44,7 +44,8 @@ type WebRTC_CDN_Node struct {
 	sources map[string]*WRTC_Source
 	relays  map[string]*WRTC_Relay
 
-	sinks map[string]map[uint64]*WRTC_Sink
+	sinks   map[string]map[uint64]*WRTC_Sink
+	senders map[string]map[string]*WRTC_Source_Sender
 }
 
 func (node *WebRTC_CDN_Node) init() {
@@ -61,6 +62,7 @@ func (node *WebRTC_CDN_Node) init() {
 	node.sources = make(map[string]*WRTC_Source)
 	node.relays = make(map[string]*WRTC_Relay)
 	node.sinks = make(map[string]map[uint64]*WRTC_Sink)
+	node.senders = make(map[string]map[string]*WRTC_Source_Sender)
 
 	// Config
 	node.ipLimit = 4
@@ -196,9 +198,19 @@ func (node *WebRTC_CDN_Node) receiveRedisMessage(msg string) {
 		sid := msgData["sid"]
 		node.receiveConnectMessage(msgSource, sid)
 	case "OFFER":
+		sid := msgData["sid"]
+		sdp := msgData["sdp"]
+		hasVideo := (msgData["video"] == "true")
+		hasAudio := (msgData["audio"] == "true")
+		node.receiveOfferMessage(msgSource, sid, sdp, hasVideo, hasAudio)
 	case "ANSWER":
+		sid := msgData["sid"]
+		sdp := msgData["sdp"]
+		node.receiveAnswerMessage(msgSource, sid, sdp)
 	case "CANDIDATE":
-	case "CLOSE":
+		sid := msgData["sid"]
+		sdp := msgData["sdp"]
+		node.receiveCandidateMessage(msgSource, sid, sdp)
 	}
 }
 
@@ -228,6 +240,27 @@ func (node *WebRTC_CDN_Node) sendInfoMessage(channel string, sid string) {
 	mp["sid"] = sid
 
 	node.sendRedisMessage(channel, &mp)
+}
+
+func (node *WebRTC_CDN_Node) sendResolveMessage(sid string) {
+	mp := make(map[string]string)
+
+	mp["type"] = "RESOLVE"
+	mp["src"] = node.id
+	mp["sid"] = sid
+
+	node.sendRedisMessage(REDIS_BROADCAST_CHANNEL, &mp)
+}
+
+func (node *WebRTC_CDN_Node) sendConnectMessage(dst string, sid string) {
+	mp := make(map[string]string)
+
+	mp["type"] = "CONNECT"
+	mp["src"] = node.id
+	mp["dst"] = dst
+	mp["sid"] = sid
+
+	node.sendRedisMessage(dst, &mp)
 }
 
 // HTTP / HTTPS Servers (SIGNALING)
@@ -399,6 +432,12 @@ func (node *WebRTC_CDN_Node) registerSource(source *WRTC_Source) {
 	}
 
 	node.sources[source.sid] = source
+
+	// Remove any relays for that source
+	if node.relays[source.sid] != nil {
+		node.relays[source.sid].close()
+		delete(node.relays, source.sid)
+	}
 }
 
 func (node *WebRTC_CDN_Node) onSourceReady(source *WRTC_Source) {
@@ -408,7 +447,6 @@ func (node *WebRTC_CDN_Node) onSourceReady(source *WRTC_Source) {
 	source.ready = true
 
 	// Notify sinks
-
 	if node.sinks[source.sid] != nil {
 		for _, sink := range node.sinks[source.sid] {
 			sink.onTracksReady(source.localTrackVideo, source.localTrackAudio)
@@ -416,6 +454,11 @@ func (node *WebRTC_CDN_Node) onSourceReady(source *WRTC_Source) {
 	}
 
 	// Notify senders
+	if node.senders[source.sid] != nil {
+		for _, sender := range node.senders[source.sid] {
+			sender.onTracksReady(source.localTrackVideo, source.localTrackAudio)
+		}
+	}
 }
 
 func (node *WebRTC_CDN_Node) onSourceClosed(source *WRTC_Source) {
@@ -424,6 +467,14 @@ func (node *WebRTC_CDN_Node) onSourceClosed(source *WRTC_Source) {
 
 	delete(node.sources, source.sid)
 
+	// Remove all the senders
+	if node.senders[source.sid] != nil {
+		for _, sender := range node.senders[source.sid] {
+			sender.close()
+		}
+	}
+
+	delete(node.senders, source.sid)
 }
 
 func (node *WebRTC_CDN_Node) resolveSource(sid string) bool {
@@ -446,13 +497,20 @@ func (node *WebRTC_CDN_Node) registerSink(sink *WRTC_Sink) {
 	node.sinks[sink.sid][sink.sinkId] = sink
 
 	// Is there a ready source for it?
-
 	if node.sources[sink.sid] != nil && node.sources[sink.sid].ready {
 		sink.onTracksReady(node.sources[sink.sid].localTrackVideo, node.sources[sink.sid].localTrackAudio)
 		return
 	}
 
-	// Is there are relay for it?
+	// Is there a relay for it?
+	if node.relays[sink.sid] != nil && node.relays[sink.sid].ready {
+		sink.onTracksReady(node.relays[sink.sid].localTrackVideo, node.relays[sink.sid].localTrackAudio)
+		return
+	}
+
+	// Can't find any source, maybe other node has it?
+	// Announce to other nodes to create the relay
+	node.sendResolveMessage(sink.sid)
 }
 
 func (node *WebRTC_CDN_Node) removeSink(sink *WRTC_Sink) {
@@ -471,6 +529,13 @@ func (node *WebRTC_CDN_Node) removeSink(sink *WRTC_Sink) {
 
 	if len(node.sinks[sink.sid]) == 0 {
 		delete(node.sinks, sink.sid)
+
+		// No more sinks for that stream means there is no need for relays
+		// Remove it
+		if node.relays[sink.sid] != nil {
+			node.relays[sink.sid].close()
+			delete(node.relays, sink.sid)
+		}
 	}
 }
 
@@ -480,6 +545,72 @@ func (node *WebRTC_CDN_Node) receiveConnectMessage(from string, sid string) {
 	node.mutexStatus.Lock()
 	defer node.mutexStatus.Unlock()
 
+	source := node.sources[sid]
+
+	if source == nil {
+		return // Ignore, no source available
+	}
+
+	if node.senders[sid] != nil && node.senders[sid][from] != nil {
+		// Close previous sender
+		node.senders[sid][from].close()
+	}
+
+	sender := WRTC_Source_Sender{
+		sid:      sid,
+		remoteId: from,
+		node:     node,
+	}
+
+	sender.init()
+
+	if node.senders[sid] == nil {
+		node.senders[sid] = make(map[string]*WRTC_Source_Sender)
+	}
+
+	node.senders[sid][from] = &sender
+
+	if node.sources[sid] != nil && node.sources[sid].ready {
+		// Tracks already available
+		sender.onTracksReady(node.sources[sid].localTrackVideo, node.sources[sid].localTrackAudio)
+	}
+}
+
+func (node *WebRTC_CDN_Node) onSenderClosed(sender *WRTC_Source_Sender) {
+	node.mutexStatus.Lock()
+	defer node.mutexStatus.Unlock()
+
+	if node.senders[sender.sid] != nil && node.senders[sender.sid][sender.remoteId] != nil {
+		delete(node.senders[sender.sid], sender.remoteId)
+
+		if len(node.senders[sender.sid]) == 0 {
+			delete(node.senders, sender.sid)
+		}
+	}
+}
+
+func (node *WebRTC_CDN_Node) receiveAnswerMessage(from string, sid string, sdp string) {
+	node.mutexStatus.Lock()
+	defer node.mutexStatus.Unlock()
+
+	if node.senders[sid] != nil && node.senders[sid][from] != nil {
+		node.senders[sid][from].onAnswer(sdp)
+	}
+}
+
+func (node *WebRTC_CDN_Node) receiveCandidateMessage(from string, sid string, sdp string) {
+	node.mutexStatus.Lock()
+	defer node.mutexStatus.Unlock()
+
+	// Check senders
+	if node.senders[sid] != nil && node.senders[sid][from] != nil {
+		node.senders[sid][from].onICECandidate(sdp)
+	}
+
+	// Check relays
+	if node.relays[sid] != nil {
+		node.relays[sid].onICECandidate(sdp)
+	}
 }
 
 // RELAYS
@@ -498,7 +629,63 @@ func (node *WebRTC_CDN_Node) receiveInfoMessage(from string, sid string) {
 		delete(node.sources, sid)
 	}
 
-	// If we have any pending relays for that stream,
-	// we must notify them, so they can connect
+	// If we have any pending sinks for that stream,
+	// we create a relay for that source
+	if node.sinks[sid] != nil && len(node.sinks[sid]) > 0 {
+		// Close old relay
+		if node.relays[sid] != nil {
+			node.relays[sid].close()
+			delete(node.relays, sid)
+		}
 
+		// Create new relay
+		relay := WRTC_Relay{
+			sid:      sid,
+			remoteId: from,
+			node:     node,
+		}
+
+		relay.init()
+
+		node.relays[sid] = &relay
+
+		// Send a connect message
+		node.sendConnectMessage(from, sid)
+	}
+}
+
+func (node *WebRTC_CDN_Node) receiveOfferMessage(from string, sid string, sdp string, hasVideo bool, hasAudio bool) {
+	node.mutexStatus.Lock()
+	defer node.mutexStatus.Unlock()
+
+	if node.relays[sid] != nil {
+		go node.relays[sid].onOffer(sdp, hasVideo, hasAudio)
+	}
+}
+
+func (node *WebRTC_CDN_Node) onRelayReady(relay *WRTC_Relay) {
+	node.mutexStatus.Lock()
+	defer node.mutexStatus.Unlock()
+
+	relay.ready = true
+
+	// Notify sinks
+	if node.sinks[relay.sid] != nil {
+		for _, sink := range node.sinks[relay.sid] {
+			sink.onTracksReady(relay.localTrackVideo, relay.localTrackAudio)
+		}
+	}
+}
+
+func (node *WebRTC_CDN_Node) onRelayClosed(relay *WRTC_Relay) {
+	node.mutexStatus.Lock()
+	defer node.mutexStatus.Unlock()
+
+	delete(node.relays, relay.sid)
+
+	// If there are sinks for that stream ID
+	// and there are no source, try resolving it
+	if node.sinks[relay.sid] != nil && len(node.sinks[relay.sid]) > 0 {
+		node.sendResolveMessage(relay.sid)
+	}
 }

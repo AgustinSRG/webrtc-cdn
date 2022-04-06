@@ -134,20 +134,3 @@ The sdp message must be provided in the `sdp` property in the message.
     "sdp": "sdp message"
 }
 ```
-
-## CLOSE
-
-This message is sent to close a WebRTC connection or when the WebRTC connection is closed.
-
-The stream ID id provided in the `sid` property in the message.
-
-The destination node ID must be provided in the `dst` property in the message.
-
-```json
-{
-    "type": "CLOSE",
-    "src": "node-id",
-    "dst": "node-id",
-    "sid": "stream-id"
-}
-```
