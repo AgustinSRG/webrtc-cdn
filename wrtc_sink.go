@@ -96,6 +96,9 @@ func (sink *WRTC_Sink) runAfterTracksReady() {
 
 	// ICE candidate handler
 	peerConnection.OnICECandidate(func(i *webrtc.ICECandidate) {
+		sink.statusMutex.Lock()
+		defer sink.statusMutex.Unlock()
+
 		sink.connection.sendICECandidate(sink.requestId, sink.sid, i.ToJSON().Candidate)
 	})
 

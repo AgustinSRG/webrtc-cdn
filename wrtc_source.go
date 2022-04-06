@@ -117,6 +117,9 @@ func (source *WRTC_Source) run() {
 
 	// ICE Candidate handler
 	peerConnection.OnICECandidate(func(i *webrtc.ICECandidate) {
+		source.statusMutex.Lock()
+		defer source.statusMutex.Unlock()
+
 		source.connection.sendICECandidate(source.requestId, source.sid, i.ToJSON().Candidate)
 	})
 

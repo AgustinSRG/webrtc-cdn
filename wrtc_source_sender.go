@@ -85,6 +85,9 @@ func (sender *WRTC_Source_Sender) runAfterTracksReady() {
 
 	// ICE candidate handler
 	peerConnection.OnICECandidate(func(i *webrtc.ICECandidate) {
+		sender.statusMutex.Lock()
+		defer sender.statusMutex.Unlock()
+
 		sender.sendICECandidate(i.ToJSON().Candidate) // Send candidate to the remote node
 	})
 
@@ -138,6 +141,7 @@ func (sender *WRTC_Source_Sender) runAfterTracksReady() {
 	sender.sendOffer(offer.SDP)
 }
 
+// Called if the peer connection is disconnected
 func (sender *WRTC_Source_Sender) onClose() {
 	sender.statusMutex.Lock()
 	defer sender.statusMutex.Unlock()
@@ -150,6 +154,7 @@ func (sender *WRTC_Source_Sender) onClose() {
 
 // SEND
 
+// Send offer SDP message to the remote node
 func (sender *WRTC_Source_Sender) sendOffer(sdp string) {
 	mp := make(map[string]string)
 
@@ -168,6 +173,7 @@ func (sender *WRTC_Source_Sender) sendOffer(sdp string) {
 	sender.node.sendRedisMessage(sender.remoteId, &mp)
 }
 
+// Send candidate SDP message to the remote node
 func (sender *WRTC_Source_Sender) sendICECandidate(sdp string) {
 	mp := make(map[string]string)
 

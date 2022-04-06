@@ -14,6 +14,7 @@ import (
 
 const REDIS_BROADCAST_CHANNEL = "webrtc_cdn"
 
+// Setup redis client to receive messages
 func setupRedisListener(node *WebRTC_CDN_Node) {
 	defer func() {
 		if err := recover(); err != nil {
@@ -28,6 +29,8 @@ func setupRedisListener(node *WebRTC_CDN_Node) {
 		}
 		LogWarning("Connection to Redis lost!")
 	}()
+
+	// Load configuration
 
 	redisHost := os.Getenv("REDIS_HOST")
 	if redisHost == "" {
@@ -45,6 +48,8 @@ func setupRedisListener(node *WebRTC_CDN_Node) {
 
 	ctx := context.Background()
 
+	// Connect
+
 	var redisClient *redis.Client
 
 	if redisTLS == "YES" {
@@ -60,12 +65,14 @@ func setupRedisListener(node *WebRTC_CDN_Node) {
 		})
 	}
 
+	// Subscribe to the channels
+
 	subscriber := redisClient.Subscribe(ctx, REDIS_BROADCAST_CHANNEL, node.id)
 
 	LogInfo("[REDIS] Listening for commands on channels '" + REDIS_BROADCAST_CHANNEL + "', '" + node.id + "'")
 
 	for {
-		msg, err := subscriber.ReceiveMessage(ctx)
+		msg, err := subscriber.ReceiveMessage(ctx) // Receive message
 
 		if err != nil {
 			LogWarning("Could not connect to Redis: " + err.Error())

@@ -11,6 +11,7 @@ import (
 
 const TRACK_PIPE_BUFFER_LENGTH = 1400
 
+// Pipe a track to another track
 func pipeTrack(remoteTrack *webrtc.TrackRemote, localTrack *webrtc.TrackLocalStaticRTP) {
 	rtpBuf := make([]byte, TRACK_PIPE_BUFFER_LENGTH)
 	for {

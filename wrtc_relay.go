@@ -8,13 +8,14 @@ import (
 	"github.com/pion/webrtc/v3"
 )
 
+// WRTC_Relay - This data structure contains the status data
+// of an inter-node INPUT connection
+// Receives the tracks of a remote WRTC_Source
 type WRTC_Relay struct {
 	sid      string // WebRTC stream ID
 	remoteId string // ID of the remote node sending it
 
-	node *WebRTC_CDN_Node
-
-	closed bool
+	node *WebRTC_CDN_Node // Reference to the node
 
 	ready bool
 
@@ -28,29 +29,13 @@ type WRTC_Relay struct {
 	localTrackAudio *webrtc.TrackLocalStaticRTP
 }
 
+// Initialize
 func (relay *WRTC_Relay) init() {
-	relay.closed = false
 	relay.ready = false
 	relay.statusMutex = &sync.Mutex{}
 }
 
-func (relay *WRTC_Relay) onICECandidate(sdp string) {
-	relay.statusMutex.Lock()
-	defer relay.statusMutex.Unlock()
-
-	if relay.peerConnection == nil {
-		return
-	}
-
-	err := relay.peerConnection.AddICECandidate(webrtc.ICECandidateInit{
-		Candidate: sdp,
-	})
-
-	if err != nil {
-		LogError(err)
-	}
-}
-
+// Called when an offer SDP message is received
 func (relay *WRTC_Relay) onOffer(sdp string, hasVideo bool, hasAudio bool) {
 	relay.statusMutex.Lock()
 	defer relay.statusMutex.Unlock()
@@ -119,6 +104,9 @@ func (relay *WRTC_Relay) onOffer(sdp string, hasVideo bool, hasAudio bool) {
 	})
 
 	peerConnection.OnICECandidate(func(i *webrtc.ICECandidate) {
+		relay.statusMutex.Lock()
+		defer relay.statusMutex.Unlock()
+
 		relay.sendICECandidate(i.ToJSON().Candidate)
 	})
 
@@ -159,6 +147,27 @@ func (relay *WRTC_Relay) onOffer(sdp string, hasVideo bool, hasAudio bool) {
 	relay.sendAnswer(answer.SDP)
 }
 
+// Call when an ICE Candidate message is received from the remote node
+func (relay *WRTC_Relay) onICECandidate(sdp string) {
+	relay.statusMutex.Lock()
+	defer relay.statusMutex.Unlock()
+
+	if relay.peerConnection == nil {
+		return
+	}
+
+	err := relay.peerConnection.AddICECandidate(webrtc.ICECandidateInit{
+		Candidate: sdp,
+	})
+
+	if err != nil {
+		LogError(err)
+	}
+}
+
+// SEND
+
+// Send candidate SDP message to the remote node
 func (relay *WRTC_Relay) sendICECandidate(sdp string) {
 	mp := make(map[string]string)
 
@@ -171,6 +180,7 @@ func (relay *WRTC_Relay) sendICECandidate(sdp string) {
 	relay.node.sendRedisMessage(relay.remoteId, &mp)
 }
 
+// Send answer SDP message to the remote node
 func (relay *WRTC_Relay) sendAnswer(sdp string) {
 	mp := make(map[string]string)
 
@@ -183,6 +193,7 @@ func (relay *WRTC_Relay) sendAnswer(sdp string) {
 	relay.node.sendRedisMessage(relay.remoteId, &mp)
 }
 
+// Called if the peer connection is closed
 func (relay *WRTC_Relay) onClose() {
 	relay.statusMutex.Lock()
 	defer relay.statusMutex.Unlock()
@@ -203,11 +214,10 @@ func (relay *WRTC_Relay) onClose() {
 	relay.node.onRelayClosed(relay)
 }
 
+// Close the relay
 func (relay *WRTC_Relay) close() {
 	relay.statusMutex.Lock()
 	defer relay.statusMutex.Unlock()
-
-	relay.closed = true
 
 	if relay.peerConnection != nil {
 		relay.peerConnection.OnICECandidate(nil)
