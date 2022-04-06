@@ -4,12 +4,15 @@ package main
 
 import "strings"
 
+// Signaling message
+// Documented at doc/signaling.md
 type SignalingMessage struct {
 	method string
 	params map[string]string
 	body   string
 }
 
+// Parses signaling message from string message received
 func parseSignalingMessage(raw string) SignalingMessage {
 	lines := strings.Split(raw, "\n")
 	msg := SignalingMessage{
@@ -56,6 +59,7 @@ func parseSignalingMessage(raw string) SignalingMessage {
 	return msg
 }
 
+// Serializes signaling message in order to send it
 func (s SignalingMessage) serialize() string {
 	var raw string
 	raw = strings.ToUpper(s.method) + "\n"

@@ -185,8 +185,16 @@ func (node *WebRTC_CDN_Node) receiveRedisMessage(msg string) {
 
 	switch msgType {
 	case "RESOLVE":
+		sid := msgData["sid"]
+		if node.resolveSource(sid) {
+			node.sendInfoMessage(msgSource, sid) // Tell the node who asked that we have that source
+		}
 	case "INFO":
+		sid := msgData["sid"]
+		node.receiveInfoMessage(msgSource, sid)
 	case "CONNECT":
+		sid := msgData["sid"]
+		node.receiveConnectMessage(msgSource, sid)
 	case "OFFER":
 	case "ANSWER":
 	case "CANDIDATE":
@@ -210,6 +218,16 @@ func (node *WebRTC_CDN_Node) sendRedisMessage(channel string, msg *map[string]st
 	} else {
 		LogDebug("[REDIS] [SENT] Channel: " + channel + " | Message: " + string(b))
 	}
+}
+
+func (node *WebRTC_CDN_Node) sendInfoMessage(channel string, sid string) {
+	mp := make(map[string]string)
+
+	mp["type"] = "INFO"
+	mp["src"] = node.id
+	mp["sid"] = sid
+
+	node.sendRedisMessage(channel, &mp)
 }
 
 // HTTP / HTTPS Servers (SIGNALING)
@@ -408,6 +426,13 @@ func (node *WebRTC_CDN_Node) onSourceClosed(source *WRTC_Source) {
 
 }
 
+func (node *WebRTC_CDN_Node) resolveSource(sid string) bool {
+	node.mutexStatus.Lock()
+	defer node.mutexStatus.Unlock()
+
+	return node.sources[sid] != nil
+}
+
 // SINKS
 
 func (node *WebRTC_CDN_Node) registerSink(sink *WRTC_Sink) {
@@ -447,4 +472,33 @@ func (node *WebRTC_CDN_Node) removeSink(sink *WRTC_Sink) {
 	if len(node.sinks[sink.sid]) == 0 {
 		delete(node.sinks, sink.sid)
 	}
+}
+
+// SOURCE SENDERS
+
+func (node *WebRTC_CDN_Node) receiveConnectMessage(from string, sid string) {
+	node.mutexStatus.Lock()
+	defer node.mutexStatus.Unlock()
+
+}
+
+// RELAYS
+
+func (node *WebRTC_CDN_Node) receiveInfoMessage(from string, sid string) {
+	node.mutexStatus.Lock()
+	defer node.mutexStatus.Unlock()
+
+	// If we receive an INFO message from another node
+	// and we have an existing connection for that stream,
+	// we must close it to prevent duplicates
+	if node.sources[sid] != nil {
+		// Close the old source
+		s := node.sources[sid]
+		s.close(true, false)
+		delete(node.sources, sid)
+	}
+
+	// If we have any pending relays for that stream,
+	// we must notify them, so they can connect
+
 }

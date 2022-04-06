@@ -138,15 +138,15 @@ func (sink *WRTC_Sink) runAfterTracksReady() {
 		return
 	}
 
-	// Send OFFER to the client
-	sink.connection.sendOffer(sink.requestId, sink.sid, offer.SDP)
-
 	// Sets the LocalDescription, and starts our UDP listeners
 	err = peerConnection.SetLocalDescription(offer)
 	if err != nil {
 		LogError(err)
 		return
 	}
+
+	// Send OFFER to the client
+	sink.connection.sendOffer(sink.requestId, sink.sid, offer.SDP)
 }
 
 // Call when an ICE Candidate message is received from the client via websocket

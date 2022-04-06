@@ -158,9 +158,6 @@ func (source *WRTC_Source) run() {
 		return
 	}
 
-	// Send to the client
-	source.connection.sendOffer(source.requestId, source.sid, offer.SDP)
-
 	// Sets the LocalDescription, and starts our UDP listeners
 	err = peerConnection.SetLocalDescription(offer)
 	if err != nil {
@@ -168,6 +165,9 @@ func (source *WRTC_Source) run() {
 		source.close(true, true)
 		return
 	}
+
+	// Send to the client
+	source.connection.sendOffer(source.requestId, source.sid, offer.SDP)
 }
 
 // ICE Candidate message received from the client

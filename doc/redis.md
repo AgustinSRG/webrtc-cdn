@@ -90,8 +90,8 @@ The `audio` and `video` peoperties indicate the kind of tracks to receive.
     "src": "node-id",
     "dst": "node-id",
     "sid": "stream-id",
-    "audio": true,
-    "video": true,
+    "audio": "true",
+    "video": "true",
     "sdp": "sdp message"
 }
 ```
