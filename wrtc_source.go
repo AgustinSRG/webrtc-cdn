@@ -120,7 +120,11 @@ func (source *WRTC_Source) run() {
 		source.statusMutex.Lock()
 		defer source.statusMutex.Unlock()
 
-		source.connection.sendICECandidate(source.requestId, source.sid, i.ToJSON().Candidate)
+		if i != nil {
+			source.connection.sendICECandidate(source.requestId, source.sid, i.ToJSON().Candidate)
+		} else {
+			source.connection.sendICECandidate(source.requestId, source.sid, "") // End of candidates
+		}
 	})
 
 	// Connection status handler

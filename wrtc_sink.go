@@ -99,7 +99,11 @@ func (sink *WRTC_Sink) runAfterTracksReady() {
 		sink.statusMutex.Lock()
 		defer sink.statusMutex.Unlock()
 
-		sink.connection.sendICECandidate(sink.requestId, sink.sid, i.ToJSON().Candidate)
+		if i != nil {
+			sink.connection.sendICECandidate(sink.requestId, sink.sid, i.ToJSON().Candidate)
+		} else {
+			sink.connection.sendICECandidate(sink.requestId, sink.sid, "")
+		}
 	})
 
 	// Connection status handler

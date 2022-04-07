@@ -107,7 +107,11 @@ func (relay *WRTC_Relay) onOffer(sdp string, hasVideo bool, hasAudio bool) {
 		relay.statusMutex.Lock()
 		defer relay.statusMutex.Unlock()
 
-		relay.sendICECandidate(i.ToJSON().Candidate)
+		if i != nil {
+			relay.sendICECandidate(i.ToJSON().Candidate)
+		} else {
+			relay.sendICECandidate("")
+		}
 	})
 
 	peerConnection.OnConnectionStateChange(func(state webrtc.PeerConnectionState) {

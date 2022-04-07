@@ -88,7 +88,11 @@ func (sender *WRTC_Source_Sender) runAfterTracksReady() {
 		sender.statusMutex.Lock()
 		defer sender.statusMutex.Unlock()
 
-		sender.sendICECandidate(i.ToJSON().Candidate) // Send candidate to the remote node
+		if i != nil {
+			sender.sendICECandidate(i.ToJSON().Candidate) // Send candidate to the remote node
+		} else {
+			sender.sendICECandidate("") // End of candidates
+		}
 	})
 
 	// Connection status handler
