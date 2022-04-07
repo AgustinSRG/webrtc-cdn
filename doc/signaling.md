@@ -14,7 +14,7 @@ The messages are UTF-8 encoded strings, with parts splits by line breaks:
  
   - The first line is the message type
   - After it, the message can have an arbitrary number of arguments. Each argument has a name, followed by a colon and it's value.
-  - Optionally, after the arguments, it can be an empty line, followed by the body of the message. In this case, the body will be [SDP](https://en.wikipedia.org/wiki/Session_Description_Protocol) protocol messages.
+  - Optionally, after the arguments, it can be an empty line, followed by the body of the message. In this case, the body will be JSON encoded messages refering to the SDP and candidate exchange.
 
 ```
 MESSAGE-TYPE
@@ -22,8 +22,7 @@ Request-ID: request-id
 Auth: auth-token
 Argument: value
 
-sdp line 1
-sdp line 2
+{body}
 ...
 ```
 
@@ -106,40 +105,45 @@ Error-Message: Example Error message
 
 ### Offer
 
-In order to send an SDP offer, an `OFFER` message is required, including the request ID as an argument and the SDP message in the body.
+In order to send an SDP offer, an `OFFER` message is required, including the request ID as an argument.
+
+The type and SDP must be encoded as JSON, following the [RTCSessionDescription](https://developer.mozilla.org/en-US/docs/Web/API/RTCSessionDescription) structure.
 
 ```
 OFFER
 Request-ID: request-id
 
-sdp line 1
-sdp line 2
+{offer json}
 ...
 ```
 
 ### Answer
 
-In order to send an SDP answer, an `ANSWER` message is required, including the request ID as an argument and the SDP message in the body.
+In order to send an SDP answer, an `ANSWER` message is required, including the request ID as an argument.
+
+The type and SDP must be encoded as JSON, following the [RTCSessionDescription](https://developer.mozilla.org/en-US/docs/Web/API/RTCSessionDescription) structure.
 
 ```
 ANSWER
 Request-ID: request-id
 
-sdp line 1
-sdp line 2
+{answer json}
 ...
 ```
 
 ### ICE Candidate
 
-For exchanging ICE candidates, `CANDIDATE` messages are used, including the request ID as an argument and the SDP message in the body.
+For exchanging ICE candidates, `CANDIDATE` messages are used, including the request ID as an argument.
+
+The candidate information is exchanged in the body in JSON format, following the [RTCIceCandidate](https://developer.mozilla.org/en-US/docs/Web/API/RTCIceCandidate) format.
+
+For the end of candidates message, the body must be empty.
 
 ```
 CANDIDATE
 Request-ID: request-id
 
-sdp line 1
-sdp line 2
+{candidate json}
 ...
 ```
 

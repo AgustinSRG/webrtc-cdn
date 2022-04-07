@@ -39,7 +39,7 @@ func LogRequest(session_id uint64, ip string, line string) {
 	}
 }
 
-var LOG_DEBUG_ENABLED = (os.Getenv("LOG_DEBUG") == "YES")
+var LOG_DEBUG_ENABLED = true //(os.Getenv("LOG_DEBUG") == "YES")
 
 func LogDebug(line string) {
 	if LOG_DEBUG_ENABLED {

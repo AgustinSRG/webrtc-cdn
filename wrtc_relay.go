@@ -3,6 +3,7 @@
 package main
 
 import (
+	"encoding/json"
 	"sync"
 
 	"github.com/pion/webrtc/v3"
@@ -108,7 +109,12 @@ func (relay *WRTC_Relay) onOffer(sdp string, hasVideo bool, hasAudio bool) {
 		defer relay.statusMutex.Unlock()
 
 		if i != nil {
-			relay.sendICECandidate(i.ToJSON().Candidate)
+			b, e := json.Marshal(i.ToJSON())
+			if e != nil {
+				LogError(e)
+			} else {
+				relay.sendICECandidate(string(b))
+			}
 		} else {
 			relay.sendICECandidate("")
 		}
@@ -152,7 +158,7 @@ func (relay *WRTC_Relay) onOffer(sdp string, hasVideo bool, hasAudio bool) {
 }
 
 // Call when an ICE Candidate message is received from the remote node
-func (relay *WRTC_Relay) onICECandidate(sdp string) {
+func (relay *WRTC_Relay) onICECandidate(candidateJSON string) {
 	relay.statusMutex.Lock()
 	defer relay.statusMutex.Unlock()
 
@@ -160,9 +166,19 @@ func (relay *WRTC_Relay) onICECandidate(sdp string) {
 		return
 	}
 
-	err := relay.peerConnection.AddICECandidate(webrtc.ICECandidateInit{
-		Candidate: sdp,
-	})
+	if candidateJSON == "" {
+		return
+	}
+
+	candidate := webrtc.ICECandidateInit{}
+
+	err := json.Unmarshal([]byte(candidateJSON), &candidate)
+
+	if err != nil {
+		LogError(err)
+	}
+
+	err = relay.peerConnection.AddICECandidate(candidate)
 
 	if err != nil {
 		LogError(err)
@@ -171,15 +187,15 @@ func (relay *WRTC_Relay) onICECandidate(sdp string) {
 
 // SEND
 
-// Send candidate SDP message to the remote node
-func (relay *WRTC_Relay) sendICECandidate(sdp string) {
+// Send candidate message to the remote node
+func (relay *WRTC_Relay) sendICECandidate(candidate string) {
 	mp := make(map[string]string)
 
 	mp["type"] = "CANDIDATE"
 	mp["src"] = relay.node.id
 	mp["dst"] = relay.remoteId
 	mp["sid"] = relay.sid
-	mp["sdp"] = sdp
+	mp["candidate"] = candidate
 
 	relay.node.sendRedisMessage(relay.remoteId, &mp)
 }

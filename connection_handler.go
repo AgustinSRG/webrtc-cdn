@@ -194,6 +194,8 @@ func (h *Connection_Handler) receivePublishMessage(msg SignalingMessage) {
 		h.requests[requestId] = REQUEST_TYPE_PUBLISH
 		h.sources[requestId] = &source
 
+		h.sendOkMessage(requestId)
+
 		go source.run()
 	}()
 }
@@ -244,6 +246,8 @@ func (h *Connection_Handler) receivePlayMessage(msg SignalingMessage) {
 		h.requestCount++
 		h.requests[requestId] = REQUEST_TYPE_PUBLISH
 		h.sinks[requestId] = &sink
+
+		h.sendOkMessage(requestId)
 
 		go sink.run()
 	}()
@@ -336,6 +340,18 @@ func (h *Connection_Handler) sendErrorMessage(code string, errMsg string) {
 	h.send(msg)
 }
 
+func (h *Connection_Handler) sendOkMessage(requestID string) {
+	msg := SignalingMessage{
+		method: "OK",
+		params: make(map[string]string),
+		body:   "",
+	}
+
+	msg.params["Request-ID"] = requestID
+
+	h.send(msg)
+}
+
 // LOG
 
 func (h *Connection_Handler) log(msg string) {
@@ -348,11 +364,11 @@ func (h *Connection_Handler) logDebug(msg string) {
 
 // OFFER
 
-func (h *Connection_Handler) sendOffer(reqId string, sid string, sdp string) {
+func (h *Connection_Handler) sendOffer(reqId string, sid string, offerJSON string) {
 	msg := SignalingMessage{
 		method: "OFFER",
 		params: make(map[string]string),
-		body:   sdp,
+		body:   offerJSON,
 	}
 
 	msg.params["Request-ID"] = reqId
@@ -363,11 +379,11 @@ func (h *Connection_Handler) sendOffer(reqId string, sid string, sdp string) {
 
 // SEND CANDIDATE
 
-func (h *Connection_Handler) sendICECandidate(reqId string, sid string, sdp string) {
+func (h *Connection_Handler) sendICECandidate(reqId string, sid string, candidateJSON string) {
 	msg := SignalingMessage{
 		method: "CANDIDATE",
 		params: make(map[string]string),
-		body:   sdp,
+		body:   candidateJSON,
 	}
 
 	msg.params["Request-ID"] = reqId

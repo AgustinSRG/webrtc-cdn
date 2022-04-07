@@ -5,6 +5,7 @@
 package main
 
 import (
+	"encoding/json"
 	"sync"
 
 	"github.com/pion/webrtc/v3"
@@ -121,7 +122,12 @@ func (source *WRTC_Source) run() {
 		defer source.statusMutex.Unlock()
 
 		if i != nil {
-			source.connection.sendICECandidate(source.requestId, source.sid, i.ToJSON().Candidate)
+			b, e := json.Marshal(i.ToJSON())
+			if e != nil {
+				LogError(e)
+			} else {
+				source.connection.sendICECandidate(source.requestId, source.sid, string(b))
+			}
 		} else {
 			source.connection.sendICECandidate(source.requestId, source.sid, "") // End of candidates
 		}
@@ -174,11 +180,20 @@ func (source *WRTC_Source) run() {
 	}
 
 	// Send to the client
-	source.connection.sendOffer(source.requestId, source.sid, offer.SDP)
+
+	offerJSON, e := json.Marshal(offer)
+
+	if e != nil {
+		LogError(e)
+		source.close(true, true)
+		return
+	}
+
+	source.connection.sendOffer(source.requestId, source.sid, string(offerJSON))
 }
 
 // ICE Candidate message received from the client
-func (source *WRTC_Source) onICECandidate(sdp string) {
+func (source *WRTC_Source) onICECandidate(candidateJSON string) {
 	source.statusMutex.Lock()
 	defer source.statusMutex.Unlock()
 
@@ -186,16 +201,27 @@ func (source *WRTC_Source) onICECandidate(sdp string) {
 		return
 	}
 
-	err := source.peerConnection.AddICECandidate(webrtc.ICECandidateInit{
-		Candidate: sdp,
-	})
+	if candidateJSON == "" {
+		return
+	}
+
+	candidate := webrtc.ICECandidateInit{}
+
+	err := json.Unmarshal([]byte(candidateJSON), &candidate)
+
+	if err != nil {
+		LogError(err)
+	}
+
+	err = source.peerConnection.AddICECandidate(candidate)
+
 	if err != nil {
 		LogError(err)
 	}
 }
 
 // ANSWER message received from the client
-func (source *WRTC_Source) onAnswer(sdp string) {
+func (source *WRTC_Source) onAnswer(answerJSON string) {
 	source.statusMutex.Lock()
 	defer source.statusMutex.Unlock()
 
@@ -203,11 +229,17 @@ func (source *WRTC_Source) onAnswer(sdp string) {
 		return
 	}
 
+	sd := webrtc.SessionDescription{}
+
+	err := json.Unmarshal([]byte(answerJSON), &sd)
+
+	if err != nil {
+		LogError(err)
+	}
+
 	// Set the remote SessionDescription
-	err := source.peerConnection.SetRemoteDescription(webrtc.SessionDescription{
-		Type: webrtc.SDPTypeAnswer,
-		SDP:  sdp,
-	})
+	err = source.peerConnection.SetRemoteDescription(sd)
+
 	if err != nil {
 		LogError(err)
 		return

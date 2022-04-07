@@ -209,8 +209,8 @@ func (node *WebRTC_CDN_Node) receiveRedisMessage(msg string) {
 		node.receiveAnswerMessage(msgSource, sid, sdp)
 	case "CANDIDATE":
 		sid := msgData["sid"]
-		sdp := msgData["sdp"]
-		node.receiveCandidateMessage(msgSource, sid, sdp)
+		candidate := msgData["candidate"]
+		node.receiveCandidateMessage(msgSource, sid, candidate)
 	}
 }
 
@@ -404,6 +404,10 @@ func (node *WebRTC_CDN_Node) ServeHTTP(w http.ResponseWriter, req *http.Request)
 		node.mutexStatus.Unlock()
 
 		go handler.run()
+	} else if req.URL.Path == "/test" {
+		w.Header().Add("Content-Type", "text/html")
+		w.WriteHeader(200)
+		fmt.Fprint(w, TEST_CLIENT_HTML)
 	} else {
 		w.WriteHeader(200)
 		fmt.Fprintf(w, "WebRTC-CDN Signaling Server. Connect to /ws for signaling")
@@ -598,18 +602,18 @@ func (node *WebRTC_CDN_Node) receiveAnswerMessage(from string, sid string, sdp s
 	}
 }
 
-func (node *WebRTC_CDN_Node) receiveCandidateMessage(from string, sid string, sdp string) {
+func (node *WebRTC_CDN_Node) receiveCandidateMessage(from string, sid string, candidate string) {
 	node.mutexStatus.Lock()
 	defer node.mutexStatus.Unlock()
 
 	// Check senders
 	if node.senders[sid] != nil && node.senders[sid][from] != nil {
-		node.senders[sid][from].onICECandidate(sdp)
+		node.senders[sid][from].onICECandidate(candidate)
 	}
 
 	// Check relays
 	if node.relays[sid] != nil {
-		node.relays[sid].onICECandidate(sdp)
+		node.relays[sid].onICECandidate(candidate)
 	}
 }
 

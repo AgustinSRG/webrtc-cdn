@@ -4,6 +4,7 @@
 package main
 
 import (
+	"encoding/json"
 	"sync"
 
 	"github.com/pion/webrtc/v3"
@@ -89,7 +90,12 @@ func (sender *WRTC_Source_Sender) runAfterTracksReady() {
 		defer sender.statusMutex.Unlock()
 
 		if i != nil {
-			sender.sendICECandidate(i.ToJSON().Candidate) // Send candidate to the remote node
+			b, e := json.Marshal(i.ToJSON())
+			if e != nil {
+				LogError(e)
+			} else {
+				sender.sendICECandidate(string(b)) // Send candidate to the remote node
+			}
 		} else {
 			sender.sendICECandidate("") // End of candidates
 		}
@@ -177,15 +183,15 @@ func (sender *WRTC_Source_Sender) sendOffer(sdp string) {
 	sender.node.sendRedisMessage(sender.remoteId, &mp)
 }
 
-// Send candidate SDP message to the remote node
-func (sender *WRTC_Source_Sender) sendICECandidate(sdp string) {
+// Send candidate message to the remote node
+func (sender *WRTC_Source_Sender) sendICECandidate(candidate string) {
 	mp := make(map[string]string)
 
 	mp["type"] = "CANDIDATE"
 	mp["src"] = sender.node.id
 	mp["dst"] = sender.remoteId
 	mp["sid"] = sender.sid
-	mp["sdp"] = sdp
+	mp["candidate"] = candidate
 
 	sender.node.sendRedisMessage(sender.remoteId, &mp)
 }
@@ -193,7 +199,7 @@ func (sender *WRTC_Source_Sender) sendICECandidate(sdp string) {
 // RECEIVE
 
 // Call when an ICE Candidate message is received from the remote node
-func (sender *WRTC_Source_Sender) onICECandidate(sdp string) {
+func (sender *WRTC_Source_Sender) onICECandidate(candidateJSON string) {
 	sender.statusMutex.Lock()
 	defer sender.statusMutex.Unlock()
 
@@ -201,9 +207,19 @@ func (sender *WRTC_Source_Sender) onICECandidate(sdp string) {
 		return
 	}
 
-	err := sender.peerConnection.AddICECandidate(webrtc.ICECandidateInit{
-		Candidate: sdp,
-	})
+	if candidateJSON == "" {
+		return
+	}
+
+	candidate := webrtc.ICECandidateInit{}
+
+	err := json.Unmarshal([]byte(candidateJSON), &candidate)
+
+	if err != nil {
+		LogError(err)
+	}
+
+	err = sender.peerConnection.AddICECandidate(candidate)
 
 	if err != nil {
 		LogError(err)

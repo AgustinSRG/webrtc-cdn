@@ -4,6 +4,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"sync"
 
@@ -100,7 +101,12 @@ func (sink *WRTC_Sink) runAfterTracksReady() {
 		defer sink.statusMutex.Unlock()
 
 		if i != nil {
-			sink.connection.sendICECandidate(sink.requestId, sink.sid, i.ToJSON().Candidate)
+			b, e := json.Marshal(i.ToJSON())
+			if e != nil {
+				LogError(e)
+			} else {
+				sink.connection.sendICECandidate(sink.requestId, sink.sid, string(b))
+			}
 		} else {
 			sink.connection.sendICECandidate(sink.requestId, sink.sid, "")
 		}
@@ -153,11 +159,19 @@ func (sink *WRTC_Sink) runAfterTracksReady() {
 	}
 
 	// Send OFFER to the client
-	sink.connection.sendOffer(sink.requestId, sink.sid, offer.SDP)
+
+	offerJSON, e := json.Marshal(offer)
+
+	if e != nil {
+		LogError(e)
+		return
+	}
+
+	sink.connection.sendOffer(sink.requestId, sink.sid, string(offerJSON))
 }
 
 // Call when an ICE Candidate message is received from the client via websocket
-func (sink *WRTC_Sink) onICECandidate(sdp string) {
+func (sink *WRTC_Sink) onICECandidate(candidateJSON string) {
 	sink.statusMutex.Lock()
 	defer sink.statusMutex.Unlock()
 
@@ -165,9 +179,19 @@ func (sink *WRTC_Sink) onICECandidate(sdp string) {
 		return
 	}
 
-	err := sink.peerConnection.AddICECandidate(webrtc.ICECandidateInit{
-		Candidate: sdp,
-	})
+	if candidateJSON == "" {
+		return
+	}
+
+	candidate := webrtc.ICECandidateInit{}
+
+	err := json.Unmarshal([]byte(candidateJSON), &candidate)
+
+	if err != nil {
+		LogError(err)
+	}
+
+	err = sink.peerConnection.AddICECandidate(candidate)
 
 	if err != nil {
 		LogError(err)
@@ -175,7 +199,7 @@ func (sink *WRTC_Sink) onICECandidate(sdp string) {
 }
 
 // Call when the ANSWER is received from the client via websocket
-func (sink *WRTC_Sink) onAnswer(sdp string) {
+func (sink *WRTC_Sink) onAnswer(answerJSON string) {
 	sink.statusMutex.Lock()
 	defer sink.statusMutex.Unlock()
 
@@ -183,11 +207,16 @@ func (sink *WRTC_Sink) onAnswer(sdp string) {
 		return
 	}
 
+	sd := webrtc.SessionDescription{}
+
+	err := json.Unmarshal([]byte(answerJSON), &sd)
+
+	if err != nil {
+		LogError(err)
+	}
+
 	// Set the remote SessionDescription
-	err := sink.peerConnection.SetRemoteDescription(webrtc.SessionDescription{
-		Type: webrtc.SDPTypeAnswer,
-		SDP:  sdp,
-	})
+	err = sink.peerConnection.SetRemoteDescription(sd)
 
 	if err != nil {
 		LogError(err)
