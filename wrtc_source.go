@@ -6,10 +6,16 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
+	"io"
 	"sync"
+	"time"
 
+	"github.com/pion/rtcp"
 	"github.com/pion/webrtc/v3"
 )
+
+const rtcpPLIInterval = time.Second * 2
 
 // WRTC_Source -This data structure contains the status data
 // of a source connection (Client -> Node)
@@ -90,6 +96,19 @@ func (source *WRTC_Source) run() {
 			source.localTrackVideo = localTrack
 
 			go pipeTrack(remoteTrack, localTrack)
+
+			// Send a PLI on an interval so that the publisher is pushing a keyframe every rtcpPLIInterval
+			// This can be less wasteful by processing incoming RTCP events, then we would emit a NACK/PLI when a viewer requests it
+			go func() {
+				ticker := time.NewTicker(rtcpPLIInterval)
+				for range ticker.C {
+					if rtcpSendErr := peerConnection.WriteRTCP([]rtcp.Packet{&rtcp.PictureLossIndication{MediaSSRC: uint32(remoteTrack.SSRC())}}); rtcpSendErr != nil {
+						if errors.Is(rtcpSendErr, io.ErrClosedPipe) {
+							return
+						}
+					}
+				}
+			}()
 		} else if remoteTrack.Kind() == webrtc.RTPCodecTypeAudio {
 			// Received audio track
 			if source.localTrackAudio != nil {
@@ -112,6 +131,7 @@ func (source *WRTC_Source) run() {
 
 		if (!source.hasAudio || source.localTrackAudio != nil) && (!source.hasVideo || source.localTrackVideo != nil) {
 			// Received all the tracks
+			source.connection.logDebug("Source Ready | SreamID: " + source.sid + " | RequestID: " + source.requestId)
 			source.node.onSourceReady(source)
 		}
 	})

@@ -52,6 +52,7 @@ func (h *Connection_Handler) run() {
 		h.log("Connection closed.")
 		h.connection.Close()
 		h.closed = true
+		h.onClose()
 		h.node.RemoveIP(h.ip)
 		h.node.onClose(h.id)
 	}()
@@ -395,8 +396,8 @@ func (h *Connection_Handler) sendICECandidate(reqId string, sid string, candidat
 // SEND CLOSE
 
 func (h *Connection_Handler) sendSourceClose(reqId string, sid string) {
-	h.sendingMutex.Lock()
-	defer h.sendingMutex.Unlock()
+	h.statusMutex.Lock()
+	defer h.statusMutex.Unlock()
 
 	delete(h.sources, reqId)
 	delete(h.requests, reqId)
@@ -412,4 +413,27 @@ func (h *Connection_Handler) sendSourceClose(reqId string, sid string) {
 	msg.params["Stream-ID"] = sid
 
 	h.send(msg)
+}
+
+func (h *Connection_Handler) onClose() {
+	h.statusMutex.Lock()
+	defer h.statusMutex.Unlock()
+
+	for requestId := range h.requests {
+		if h.requests[requestId] == 0 {
+			return // IGNORE
+		} else if h.requests[requestId] == REQUEST_TYPE_PUBLISH {
+			h.sources[requestId].close(false, true)
+
+			delete(h.sources, requestId)
+			delete(h.requests, requestId)
+			h.requestCount--
+		} else if h.requests[requestId] == REQUEST_TYPE_PLAY {
+			h.sinks[requestId].close()
+
+			delete(h.sinks, requestId)
+			delete(h.requests, requestId)
+			h.requestCount--
+		}
+	}
 }
