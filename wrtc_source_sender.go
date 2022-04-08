@@ -148,7 +148,14 @@ func (sender *WRTC_Source_Sender) runAfterTracksReady() {
 	}
 
 	// Send OFFER to the remote node
-	sender.sendOffer(offer.SDP)
+	offerJSON, e := json.Marshal(offer)
+
+	if e != nil {
+		LogError(e)
+		return
+	}
+
+	sender.sendOffer(string(offerJSON))
 }
 
 // Called if the peer connection is disconnected
@@ -165,7 +172,7 @@ func (sender *WRTC_Source_Sender) onClose() {
 // SEND
 
 // Send offer SDP message to the remote node
-func (sender *WRTC_Source_Sender) sendOffer(sdp string) {
+func (sender *WRTC_Source_Sender) sendOffer(offerJSON string) {
 	mp := make(map[string]string)
 
 	mp["type"] = "OFFER"
@@ -178,7 +185,7 @@ func (sender *WRTC_Source_Sender) sendOffer(sdp string) {
 	if sender.hasAudio {
 		mp["audio"] = "true"
 	}
-	mp["sdp"] = sdp
+	mp["data"] = offerJSON
 
 	sender.node.sendRedisMessage(sender.remoteId, &mp)
 }
@@ -191,7 +198,7 @@ func (sender *WRTC_Source_Sender) sendICECandidate(candidate string) {
 	mp["src"] = sender.node.id
 	mp["dst"] = sender.remoteId
 	mp["sid"] = sender.sid
-	mp["candidate"] = candidate
+	mp["data"] = candidate
 
 	sender.node.sendRedisMessage(sender.remoteId, &mp)
 }
@@ -227,7 +234,7 @@ func (sender *WRTC_Source_Sender) onICECandidate(candidateJSON string) {
 }
 
 // Call when the ANSWER is received from the remote node
-func (sender *WRTC_Source_Sender) onAnswer(sdp string) {
+func (sender *WRTC_Source_Sender) onAnswer(answerJSON string) {
 	sender.statusMutex.Lock()
 	defer sender.statusMutex.Unlock()
 
@@ -235,11 +242,16 @@ func (sender *WRTC_Source_Sender) onAnswer(sdp string) {
 		return
 	}
 
+	sd := webrtc.SessionDescription{}
+
+	err := json.Unmarshal([]byte(answerJSON), &sd)
+
+	if err != nil {
+		LogError(err)
+	}
+
 	// Set the remote SessionDescription
-	err := sender.peerConnection.SetRemoteDescription(webrtc.SessionDescription{
-		Type: webrtc.SDPTypeAnswer,
-		SDP:  sdp,
-	})
+	err = sender.peerConnection.SetRemoteDescription(sd)
 
 	if err != nil {
 		LogError(err)

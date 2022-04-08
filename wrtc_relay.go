@@ -37,7 +37,7 @@ func (relay *WRTC_Relay) init() {
 }
 
 // Called when an offer SDP message is received
-func (relay *WRTC_Relay) onOffer(sdp string, hasVideo bool, hasAudio bool) {
+func (relay *WRTC_Relay) onOffer(offerJSON string, hasVideo bool, hasAudio bool) {
 	relay.statusMutex.Lock()
 	defer relay.statusMutex.Unlock()
 
@@ -130,10 +130,13 @@ func (relay *WRTC_Relay) onOffer(sdp string, hasVideo bool, hasAudio bool) {
 	})
 
 	// Set the remote SessionDescription
-	err = relay.peerConnection.SetRemoteDescription(webrtc.SessionDescription{
-		Type: webrtc.SDPTypeOffer,
-		SDP:  sdp,
-	})
+	sd := webrtc.SessionDescription{}
+	err = json.Unmarshal([]byte(offerJSON), &sd)
+	if err != nil {
+		LogError(err)
+		return
+	}
+	err = relay.peerConnection.SetRemoteDescription(sd)
 	if err != nil {
 		LogError(err)
 		return
@@ -154,7 +157,13 @@ func (relay *WRTC_Relay) onOffer(sdp string, hasVideo bool, hasAudio bool) {
 	}
 
 	// Send ANSWER to the signaling system
-	relay.sendAnswer(answer.SDP)
+	answerJSON, e := json.Marshal(answer)
+
+	if e != nil {
+		LogError(e)
+		return
+	}
+	relay.sendAnswer(string(answerJSON))
 }
 
 // Call when an ICE Candidate message is received from the remote node
@@ -188,27 +197,27 @@ func (relay *WRTC_Relay) onICECandidate(candidateJSON string) {
 // SEND
 
 // Send candidate message to the remote node
-func (relay *WRTC_Relay) sendICECandidate(candidate string) {
+func (relay *WRTC_Relay) sendICECandidate(candidateJSON string) {
 	mp := make(map[string]string)
 
 	mp["type"] = "CANDIDATE"
 	mp["src"] = relay.node.id
 	mp["dst"] = relay.remoteId
 	mp["sid"] = relay.sid
-	mp["candidate"] = candidate
+	mp["data"] = candidateJSON
 
 	relay.node.sendRedisMessage(relay.remoteId, &mp)
 }
 
 // Send answer SDP message to the remote node
-func (relay *WRTC_Relay) sendAnswer(sdp string) {
+func (relay *WRTC_Relay) sendAnswer(answerJSON string) {
 	mp := make(map[string]string)
 
 	mp["type"] = "ANSWER"
 	mp["src"] = relay.node.id
 	mp["dst"] = relay.remoteId
 	mp["sid"] = relay.sid
-	mp["sdp"] = sdp
+	mp["data"] = answerJSON
 
 	relay.node.sendRedisMessage(relay.remoteId, &mp)
 }

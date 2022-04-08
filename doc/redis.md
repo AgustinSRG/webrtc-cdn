@@ -80,7 +80,7 @@ The stream ID id provided in the `sid` property in the message.
 
 The destination node ID must be provided in the `dst` property in the message.
 
-The sdp message must be provided in the `sdp` property in the message.
+The sdp message must be provided in the `data` property in the message.
 
 The `audio` and `video` peoperties indicate the kind of tracks to receive.
 
@@ -92,7 +92,7 @@ The `audio` and `video` peoperties indicate the kind of tracks to receive.
     "sid": "stream-id",
     "audio": "true",
     "video": "true",
-    "sdp": "sdp message"
+    "data": "{JSON}"
 }
 ```
 
@@ -103,7 +103,7 @@ The stream ID id provided in the `sid` property in the message.
 
 The destination node ID must be provided in the `dst` property in the message.
 
-The sdp message must be provided in the `sdp` property in the message.
+The sdp message must be provided in the `data` property in the message.
 
 ```json
 {
@@ -111,7 +111,7 @@ The sdp message must be provided in the `sdp` property in the message.
     "src": "node-id",
     "dst": "node-id",
     "sid": "stream-id",
-    "sdp": "sdp message"
+    "data": "{JSON}"
 }
 ```
 
@@ -123,9 +123,9 @@ The stream ID id provided in the `sid` property in the message.
 
 The destination node ID must be provided in the `dst` property in the message.
 
-The candidate information must be provided in the `candidate` property in the message.
+The candidate information must be provided in the `data` property in the message.
 
-For the end of candidates, `candidate` is an empty string.
+For the end of candidates, `data` is an empty string.
 
 ```json
 {
@@ -133,6 +133,6 @@ For the end of candidates, `candidate` is an empty string.
     "src": "node-id",
     "dst": "node-id",
     "sid": "stream-id",
-    "candidate": "{JSON}"
+    "data": "{JSON}"
 }
 ```

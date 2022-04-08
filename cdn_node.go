@@ -199,18 +199,18 @@ func (node *WebRTC_CDN_Node) receiveRedisMessage(msg string) {
 		node.receiveConnectMessage(msgSource, sid)
 	case "OFFER":
 		sid := msgData["sid"]
-		sdp := msgData["sdp"]
+		data := msgData["data"]
 		hasVideo := (msgData["video"] == "true")
 		hasAudio := (msgData["audio"] == "true")
-		node.receiveOfferMessage(msgSource, sid, sdp, hasVideo, hasAudio)
+		node.receiveOfferMessage(msgSource, sid, data, hasVideo, hasAudio)
 	case "ANSWER":
 		sid := msgData["sid"]
-		sdp := msgData["sdp"]
-		node.receiveAnswerMessage(msgSource, sid, sdp)
+		data := msgData["data"]
+		node.receiveAnswerMessage(msgSource, sid, data)
 	case "CANDIDATE":
 		sid := msgData["sid"]
-		candidate := msgData["candidate"]
-		node.receiveCandidateMessage(msgSource, sid, candidate)
+		data := msgData["data"]
+		node.receiveCandidateMessage(msgSource, sid, data)
 	}
 }
 
@@ -658,12 +658,12 @@ func (node *WebRTC_CDN_Node) receiveInfoMessage(from string, sid string) {
 	}
 }
 
-func (node *WebRTC_CDN_Node) receiveOfferMessage(from string, sid string, sdp string, hasVideo bool, hasAudio bool) {
+func (node *WebRTC_CDN_Node) receiveOfferMessage(from string, sid string, data string, hasVideo bool, hasAudio bool) {
 	node.mutexStatus.Lock()
 	defer node.mutexStatus.Unlock()
 
 	if node.relays[sid] != nil {
-		go node.relays[sid].onOffer(sdp, hasVideo, hasAudio)
+		go node.relays[sid].onOffer(data, hasVideo, hasAudio)
 	}
 }
 
