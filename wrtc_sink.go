@@ -44,11 +44,6 @@ func (sink *WRTC_Sink) init() {
 	sink.closed = false
 }
 
-// Registers the sink into the node to access the requested stream
-func (sink *WRTC_Sink) run() {
-	sink.node.registerSink(sink)
-}
-
 // Receive the tracks from local source or relay
 func (sink *WRTC_Sink) onTracksReady(localTrackVideo *webrtc.TrackLocalStaticRTP, localTrackAudio *webrtc.TrackLocalStaticRTP) {
 	sink.statusMutex.Lock()

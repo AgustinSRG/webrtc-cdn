@@ -10,33 +10,40 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+// Period to send HEARTBEAT messages to the client
 const HEARTBEAT_MSG_PERIOD_SECONDS = 30
+
+// Max time with no HEARTBEAT messages to consider the connection dead
 const HEARTBEAT_TIMEOUT_MS = 2 * HEARTBEAT_MSG_PERIOD_SECONDS * 1000
 
+// Request types
 const REQUEST_TYPE_PUBLISH = 1
 const REQUEST_TYPE_PLAY = 2
 
+// Connection_Handler - Stores status data
+// of an active connection
 type Connection_Handler struct {
-	id uint64
-	ip string
+	id uint64 // Connection ID
+	ip string // Client IP address
 
-	node       *WebRTC_CDN_Node
-	connection *websocket.Conn
+	node       *WebRTC_CDN_Node // Reference to the node
+	connection *websocket.Conn  // Reference to the websocket connection
 
-	lastHearbeat int64
+	lastHearbeat int64 // Timestamp: Last time a HEARTBEAT message was received
 
-	closed bool
+	closed bool // True if the connection is closed
 
-	sendingMutex *sync.Mutex
-	statusMutex  *sync.Mutex
+	sendingMutex *sync.Mutex // Mutex to control sending messages
+	statusMutex  *sync.Mutex // Mutex to sontrol access to the status data
 
-	requests     map[string]int
-	requestCount uint32
+	requests     map[string]int // List of requests
+	requestCount uint32         // Request count
 
-	sources map[string]*WRTC_Source
-	sinks   map[string]*WRTC_Sink
+	sources map[string]*WRTC_Source // References to associated WebRTCs sources
+	sinks   map[string]*WRTC_Sink   // References to associated WebRTC sinks
 }
 
+// Initialize
 func (h *Connection_Handler) init() {
 	h.closed = false
 	h.sendingMutex = &sync.Mutex{}
@@ -47,14 +54,18 @@ func (h *Connection_Handler) init() {
 	h.sinks = make(map[string]*WRTC_Sink)
 }
 
+// Runs the handler
+// Reads messages, parses them and applies them
 func (h *Connection_Handler) run() {
 	defer func() {
 		h.log("Connection closed.")
+		// Ensure connection is closed
 		h.connection.Close()
 		h.closed = true
+		// Release resources
 		h.onClose()
-		h.node.RemoveIP(h.ip)
-		h.node.onClose(h.id)
+		// Remove connection
+		h.node.onConnectionClose(h.id, h.ip)
 	}()
 
 	c := h.connection
@@ -96,8 +107,7 @@ func (h *Connection_Handler) run() {
 	}
 }
 
-// HEARTBEAT
-
+// Called when a HEARTBEAT message is received from the client
 func (h *Connection_Handler) receiveHeartbeat() {
 	h.statusMutex.Lock()
 	defer h.statusMutex.Unlock()
@@ -105,6 +115,8 @@ func (h *Connection_Handler) receiveHeartbeat() {
 	h.lastHearbeat = time.Now().UnixMilli()
 }
 
+// Checks if the client is sending HEARTBEAT messages
+// If not, closes the connection
 func (h *Connection_Handler) checkHeartbeat() {
 	h.statusMutex.Lock()
 
@@ -118,6 +130,7 @@ func (h *Connection_Handler) checkHeartbeat() {
 	}
 }
 
+// Task to send HEARTBEAT pertiodically
 func (h *Connection_Handler) sendHeartbeatMessages() {
 	for {
 		time.Sleep(HEARTBEAT_MSG_PERIOD_SECONDS * time.Second)
@@ -139,12 +152,13 @@ func (h *Connection_Handler) sendHeartbeatMessages() {
 	}
 }
 
-// PUBLISH
-
+// Called when a PUBLISH message is received from the client
 func (h *Connection_Handler) receivePublishMessage(msg SignalingMessage) {
 	requestId := msg.params["request-id"]
 	streamId := msg.params["stream-id"]
 	streamType := strings.ToUpper(msg.params["stream-type"])
+
+	// Validate params
 
 	if len(requestId) == 0 || len(requestId) > 255 {
 		h.sendErrorMessage("INVALID_REQUEST_ID", "Request ID must be an string from 1 to 255 characters.")
@@ -165,6 +179,7 @@ func (h *Connection_Handler) receivePublishMessage(msg SignalingMessage) {
 		hasAudio = false
 	}
 
+	// Create source
 	source := WRTC_Source{
 		requestId:  requestId,
 		sid:        streamId,
@@ -201,11 +216,12 @@ func (h *Connection_Handler) receivePublishMessage(msg SignalingMessage) {
 	}()
 }
 
-// PLAY
-
+// Called when a PLAY message is received from the client
 func (h *Connection_Handler) receivePlayMessage(msg SignalingMessage) {
 	requestId := msg.params["request-id"]
 	streamId := msg.params["stream-id"]
+
+	// Validate params
 
 	if len(requestId) == 0 || len(requestId) > 255 {
 		h.sendErrorMessage("INVALID_REQUEST_ID", "Request ID must be an string from 1 to 255 characters.")
@@ -219,6 +235,7 @@ func (h *Connection_Handler) receivePlayMessage(msg SignalingMessage) {
 
 	sinkId := h.node.getSinkID()
 
+	// Create sink
 	sink := WRTC_Sink{
 		sinkId:     sinkId,
 		requestId:  requestId,
@@ -250,12 +267,11 @@ func (h *Connection_Handler) receivePlayMessage(msg SignalingMessage) {
 
 		h.sendOkMessage(requestId)
 
-		go sink.run()
+		h.node.registerSink(&sink)
 	}()
 }
 
-// ANSWER
-
+// Called when an ANSWER message is received from the client
 func (h *Connection_Handler) receiveAnswerMessage(msg SignalingMessage) {
 	requestId := msg.params["request-id"]
 
@@ -273,8 +289,7 @@ func (h *Connection_Handler) receiveAnswerMessage(msg SignalingMessage) {
 	}()
 }
 
-// CANDIDATE
-
+// Called when a CANDIDATE message is received from the client
 func (h *Connection_Handler) receiveCandidateMessage(msg SignalingMessage) {
 	requestId := msg.params["request-id"]
 
@@ -292,8 +307,7 @@ func (h *Connection_Handler) receiveCandidateMessage(msg SignalingMessage) {
 	}()
 }
 
-// CLOSE
-
+// Called when a CLOSE message is received from the client
 func (h *Connection_Handler) receiveCloseMessage(msg SignalingMessage) {
 	requestId := msg.params["request-id"]
 
@@ -319,8 +333,7 @@ func (h *Connection_Handler) receiveCloseMessage(msg SignalingMessage) {
 	}()
 }
 
-// SEND
-
+// Sends a message to the client
 func (h *Connection_Handler) send(msg SignalingMessage) {
 	h.sendingMutex.Lock()
 	defer h.sendingMutex.Unlock()
@@ -328,6 +341,7 @@ func (h *Connection_Handler) send(msg SignalingMessage) {
 	h.connection.WriteMessage(websocket.TextMessage, []byte(msg.serialize()))
 }
 
+// Sends an ERROR message to the client
 func (h *Connection_Handler) sendErrorMessage(code string, errMsg string) {
 	msg := SignalingMessage{
 		method: "ERROR",
@@ -341,6 +355,7 @@ func (h *Connection_Handler) sendErrorMessage(code string, errMsg string) {
 	h.send(msg)
 }
 
+// Sends an OK message to the client
 func (h *Connection_Handler) sendOkMessage(requestID string) {
 	msg := SignalingMessage{
 		method: "OK",
@@ -353,18 +368,7 @@ func (h *Connection_Handler) sendOkMessage(requestID string) {
 	h.send(msg)
 }
 
-// LOG
-
-func (h *Connection_Handler) log(msg string) {
-	LogRequest(h.id, h.ip, msg)
-}
-
-func (h *Connection_Handler) logDebug(msg string) {
-	LogDebugSession(h.id, h.ip, msg)
-}
-
-// OFFER
-
+// Sends an OFFER message to the client
 func (h *Connection_Handler) sendOffer(reqId string, sid string, offerJSON string) {
 	msg := SignalingMessage{
 		method: "OFFER",
@@ -378,8 +382,7 @@ func (h *Connection_Handler) sendOffer(reqId string, sid string, offerJSON strin
 	h.send(msg)
 }
 
-// SEND CANDIDATE
-
+// Sends a CANDIDATE message to the client
 func (h *Connection_Handler) sendICECandidate(reqId string, sid string, candidateJSON string) {
 	msg := SignalingMessage{
 		method: "CANDIDATE",
@@ -393,8 +396,7 @@ func (h *Connection_Handler) sendICECandidate(reqId string, sid string, candidat
 	h.send(msg)
 }
 
-// SEND CLOSE
-
+// Removes a source and send a message to the client
 func (h *Connection_Handler) sendSourceClose(reqId string, sid string) {
 	h.statusMutex.Lock()
 	defer h.statusMutex.Unlock()
@@ -415,6 +417,17 @@ func (h *Connection_Handler) sendSourceClose(reqId string, sid string) {
 	h.send(msg)
 }
 
+// Logs a message for this connection
+func (h *Connection_Handler) log(msg string) {
+	LogRequest(h.id, h.ip, msg)
+}
+
+// Logs a debug message for this connection
+func (h *Connection_Handler) logDebug(msg string) {
+	LogDebugSession(h.id, h.ip, msg)
+}
+
+// Called when connection is closed to release resources
 func (h *Connection_Handler) onClose() {
 	h.statusMutex.Lock()
 	defer h.statusMutex.Unlock()

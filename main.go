@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 )
 
+// Generates an unique ID for the node
 func makeId(n int) (string, error) {
 	bytes := make([]byte, n)
 	if _, err := rand.Read(bytes); err != nil {
@@ -15,6 +16,7 @@ func makeId(n int) (string, error) {
 	return hex.EncodeToString(bytes), nil
 }
 
+// Program entry point
 func main() {
 	LogInfo("WebRTC CDN (Version 1.0.0)")
 
