@@ -70,6 +70,17 @@ const TEST_CLIENT_HTML = `
             <input id="test_auth" type="text" autocomplete="off" class="text-input">
         </div>
         <div class="form-group">
+            <label>RTCPeerConnection configuration:</label>
+            <textarea id="test_config" class="text-input">
+{
+    "iceServers": [
+        { "urls": "stun:stun.l.google.com:19302" }
+    ],
+    "sdpSemantics": "unified-plan"
+}
+            </textarea>
+        </div>
+        <div class="form-group">
             <div id="test_error" class="error-msg"></div>
             <button id="publish_button" type="button">Publish (Camera)</button>
             <button id="publish_screen_button" type="button">Publish (Screen)</button>
@@ -84,6 +95,7 @@ const TEST_CLIENT_HTML = `
     <script>
         var streamID = "";
         var authToken = "";
+        var rtcConfig = {};
 
         var ws = null;
         var peerConnection = null;
@@ -134,6 +146,13 @@ const TEST_CLIENT_HTML = `
         function loadFromForm() {
             streamID = document.getElementById("test_stream_id").value;
             authToken = document.getElementById("test_auth").value;
+
+            try {
+                rtcConfig = JSON.parse(document.getElementById("test_config").value);
+            } catch (ex) {
+                console.error(ex);
+                rtcConfig = {};
+            }
         }
 
         function escapeHTML(html) {
@@ -225,7 +244,7 @@ const TEST_CLIENT_HTML = `
                 peerConnection = null;
             }
 
-            peerConnection = new RTCPeerConnection();
+            peerConnection = new RTCPeerConnection(rtcConfig);
 
             peerConnection.onicecandidate = function (ev) {
                 if (ev.candidate) {
@@ -280,7 +299,7 @@ const TEST_CLIENT_HTML = `
             };
         }
 
-        function publishOnCandidate(msg) {
+        function onCandidate(msg) {
             var candidate = msg.body ? JSON.parse(msg.body) : null;
 
             if (peerConnection) {
@@ -299,6 +318,7 @@ const TEST_CLIENT_HTML = `
             document.getElementById("test_video").muted = true;
             document.getElementById("test_video").srcObject = mediaStream;
             document.getElementById("test_video").play();
+
             changeStatus("Status: Connecting...");
             ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws");
 
@@ -325,7 +345,6 @@ const TEST_CLIENT_HTML = `
 
             ws.addEventListener("message", function (event) {
                 var msg = parseMessage("" + event.data);
-                console.log("[WS] >> " + event.data);
                 console.log(msg);
 
                 switch (msg.type) {
@@ -341,7 +360,7 @@ const TEST_CLIENT_HTML = `
                         publishOnOffer(msg);
                         break;
                     case "CANDIDATE":
-                        publishOnCandidate(msg);
+                        onCandidate(msg);
                         break;
                     case "CLOSE":
                         stopClient();
@@ -353,6 +372,84 @@ const TEST_CLIENT_HTML = `
 
         // WATCH
 
+        function watchOnOffer(msg) {
+            if (peerConnection) {
+                peerConnection.close();
+                peerConnection = null;
+            }
+
+            if (mediaStream) {
+                try {
+                    mediaStream.stop();
+                } catch (ex) { }
+                try {
+                    mediaStream.getTracks().forEach(function (track) {
+                        track.stop();
+                    });
+                } catch (ex) { }
+            }
+
+            mediaStream = new MediaStream();
+
+            document.getElementById("test_video").muted = false;
+            document.getElementById("test_video").srcObject = mediaStream;
+            document.getElementById("test_video").play();
+
+            peerConnection = new RTCPeerConnection(rtcConfig);
+
+            peerConnection.onicecandidate = function (ev) {
+                if (ev.candidate) {
+                    ws.send(makeMessage("CANDIDATE", {
+                        "Request-ID": requestId,
+                    }, JSON.stringify(ev.candidate)));
+                } else {
+                    ws.send(makeMessage("CANDIDATE", {
+                        "Request-ID": requestId,
+                    }, ""));
+                }
+            }
+
+            peerConnection.ontrack = function (ev) {
+                console.log(ev.track);
+                mediaStream.addTrack(ev.track);
+            };
+
+            peerConnection.setRemoteDescription(JSON.parse(msg.body)).then(function () {
+                peerConnection.createAnswer().then(function (answer) {
+                    console.log(answer);
+                    peerConnection.setLocalDescription(answer).then(function () {
+                        ws.send(makeMessage("ANSWER", {
+                            "Request-ID": requestId,
+                        }, JSON.stringify(answer)));
+                    });
+                })
+            });
+
+            peerConnection.onconnectionstatechange = function (ev) {
+                switch (peerConnection.connectionState) {
+                    case "new":
+                    case "checking":
+                        console.log("PC: Connecting...");
+                        break;
+                    case "connected":
+                        console.log("PC: Online");
+                        break;
+                    case "disconnected":
+                        console.log("PC: Disconnecting...");
+                        break;
+                    case "closed":
+                        console.log("PC: Offline");
+                        break;
+                    case "failed":
+                        console.log("PC: Error");
+                        break;
+                    default:
+                        console.log("PC: " + peerConnection.connectionState);
+                        break;
+                }
+            };
+        }
+
         function watchStream() {
             if (!streamID) {
                 alert("Plaese type a valid stream ID");
@@ -360,6 +457,55 @@ const TEST_CLIENT_HTML = `
                 enableForm();
                 return;
             }
+
+            changeStatus("Status: Connecting...");
+            ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws");
+
+            ws.onopen = function () {
+                changeStatus("Status: Connected. Pulling stream...");
+
+                ws.send(makeMessage("PLAY", {
+                    "Request-ID": requestId,
+                    "Stream-ID": streamID,
+                    "Auth": authToken,
+                }, ""));
+            };
+
+            ws.onclose = function () {
+                ws = null;
+                stopClient();
+                enableForm();
+            };
+
+            ws.onerror = function (err) {
+                console.error(err);
+            };
+
+            ws.addEventListener("message", function (event) {
+                var msg = parseMessage("" + event.data);
+                console.log(msg);
+
+                switch (msg.type) {
+                    case "OK":
+                        changeStatus("Status: Connected");
+                        break;
+                    case "ERROR":
+                        stopClient();
+                        enableForm();
+                        alert("Error: " + msg.args["error-message"]);
+                        break;
+                    case "OFFER":
+                        watchOnOffer(msg);
+                        break;
+                    case "CANDIDATE":
+                        onCandidate(msg);
+                        break;
+                    case "CLOSE":
+                        stopClient();
+                        enableForm();
+                        break;
+                }
+            });
         }
 
         // STOP

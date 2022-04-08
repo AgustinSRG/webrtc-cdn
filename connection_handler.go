@@ -244,7 +244,7 @@ func (h *Connection_Handler) receivePlayMessage(msg SignalingMessage) {
 		}
 
 		h.requestCount++
-		h.requests[requestId] = REQUEST_TYPE_PUBLISH
+		h.requests[requestId] = REQUEST_TYPE_PLAY
 		h.sinks[requestId] = &sink
 
 		h.sendOkMessage(requestId)
@@ -264,9 +264,9 @@ func (h *Connection_Handler) receiveAnswerMessage(msg SignalingMessage) {
 
 		if h.requests[requestId] == 0 {
 			return // IGNORE
-		} else if h.requests[requestId] == REQUEST_TYPE_PUBLISH {
+		} else if h.requests[requestId] == REQUEST_TYPE_PUBLISH && h.sources[requestId] != nil {
 			h.sources[requestId].onAnswer(msg.body)
-		} else if h.requests[requestId] == REQUEST_TYPE_PLAY {
+		} else if h.requests[requestId] == REQUEST_TYPE_PLAY && h.sinks[requestId] != nil {
 			h.sinks[requestId].onAnswer(msg.body)
 		}
 	}()
