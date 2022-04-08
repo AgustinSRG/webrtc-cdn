@@ -370,14 +370,23 @@ func (node *WebRTC_CDN_Node) run() {
 func (node *WebRTC_CDN_Node) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	reqId := node.getRequestID()
 
-	LogRequest(reqId, req.RemoteAddr, ""+req.Method+" "+req.RequestURI)
+	ip, _, err := net.SplitHostPort(req.RemoteAddr)
+
+	if err != nil {
+		LogError(err)
+		w.WriteHeader(200)
+		fmt.Fprintf(w, "WebRTC-CDN Signaling Server. Connect to /ws for signaling")
+		return
+	}
+
+	LogRequest(reqId, ip, ""+req.Method+" "+req.RequestURI)
 
 	if req.URL.Path == "/ws" {
-		if !node.isIPExempted(req.RemoteAddr) {
-			if !node.AddIP(req.RemoteAddr) {
+		if !node.isIPExempted(ip) {
+			if !node.AddIP(ip) {
 				w.WriteHeader(429)
 				fmt.Fprintf(w, "Too many requests.")
-				LogRequest(reqId, req.RemoteAddr, "Connection rejected: Too many requests")
+				LogRequest(reqId, ip, "Connection rejected: Too many requests")
 				return
 			}
 		}
@@ -390,7 +399,7 @@ func (node *WebRTC_CDN_Node) ServeHTTP(w http.ResponseWriter, req *http.Request)
 
 		handler := Connection_Handler{
 			id:         reqId,
-			ip:         req.RemoteAddr,
+			ip:         ip,
 			node:       node,
 			connection: c,
 		}
@@ -442,6 +451,17 @@ func (node *WebRTC_CDN_Node) registerSource(source *WRTC_Source) {
 		node.relays[source.sid].close()
 		delete(node.relays, source.sid)
 	}
+
+	// Remove all the senders
+	if node.senders[source.sid] != nil {
+		for _, sender := range node.senders[source.sid] {
+			sender.close()
+		}
+		delete(node.senders, source.sid)
+	}
+
+	// Announce to other nodes
+	node.sendInfoMessage(REDIS_BROADCAST_CHANNEL, source.sid)
 }
 
 func (node *WebRTC_CDN_Node) onSourceReady(source *WRTC_Source) {
@@ -476,9 +496,9 @@ func (node *WebRTC_CDN_Node) onSourceClosed(source *WRTC_Source) {
 		for _, sender := range node.senders[source.sid] {
 			sender.close()
 		}
-	}
 
-	delete(node.senders, source.sid)
+		delete(node.senders, source.sid)
+	}
 }
 
 func (node *WebRTC_CDN_Node) resolveSource(sid string) bool {
