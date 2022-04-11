@@ -52,28 +52,20 @@ func (source *WRTC_Source) init() {
 }
 
 // Creates the connection and generates the offer
-// Registers itself into the node
-// Also sets the event handlers
 func (source *WRTC_Source) run() {
-	peerConnectionConfig := loadWebRTCConfig() // Load config
-
 	source.statusMutex.Lock()
+	defer source.statusMutex.Unlock()
+
+	peerConnectionConfig := loadWebRTCConfig() // Load config
 
 	// Create a new PeerConnection
 	peerConnection, err := webrtc.NewPeerConnection(peerConnectionConfig)
 	if err != nil {
-		source.statusMutex.Unlock()
 		LogError(err)
-		source.close(true, false)
 		return
 	}
 
 	source.peerConnection = peerConnection
-
-	source.statusMutex.Unlock()
-
-	// Register source
-	source.node.registerSource(source)
 
 	// Track event handler
 	peerConnection.OnTrack(func(remoteTrack *webrtc.TrackRemote, receiver *webrtc.RTPReceiver) {
@@ -89,7 +81,6 @@ func (source *WRTC_Source) run() {
 			localTrack, newTrackErr := webrtc.NewTrackLocalStaticRTP(remoteTrack.Codec().RTPCodecCapability, "video", "pion")
 			if newTrackErr != nil {
 				LogError(newTrackErr)
-				source.close(true, true)
 				return
 			}
 
@@ -118,7 +109,6 @@ func (source *WRTC_Source) run() {
 			localTrack, newTrackErr := webrtc.NewTrackLocalStaticRTP(remoteTrack.Codec().RTPCodecCapability, "audio", "pion")
 			if newTrackErr != nil {
 				LogError(newTrackErr)
-				source.close(true, true)
 				return
 			}
 
@@ -169,7 +159,6 @@ func (source *WRTC_Source) run() {
 		// Create transceiver to receive a VIDEO track
 		if _, err = peerConnection.AddTransceiverFromKind(webrtc.RTPCodecTypeVideo); err != nil {
 			LogError(err)
-			source.close(true, true)
 			return
 		}
 	}
@@ -178,7 +167,6 @@ func (source *WRTC_Source) run() {
 		// Create transceiver to receive an AUDIO track
 		if _, err = peerConnection.AddTransceiverFromKind(webrtc.RTPCodecTypeAudio); err != nil {
 			LogError(err)
-			source.close(true, true)
 			return
 		}
 	}
@@ -187,7 +175,6 @@ func (source *WRTC_Source) run() {
 	offer, err := peerConnection.CreateOffer(nil)
 	if err != nil {
 		LogError(err)
-		source.close(true, true)
 		return
 	}
 
@@ -195,7 +182,6 @@ func (source *WRTC_Source) run() {
 	err = peerConnection.SetLocalDescription(offer)
 	if err != nil {
 		LogError(err)
-		source.close(true, true)
 		return
 	}
 
@@ -205,7 +191,6 @@ func (source *WRTC_Source) run() {
 
 	if e != nil {
 		LogError(e)
-		source.close(true, true)
 		return
 	}
 

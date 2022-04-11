@@ -218,7 +218,9 @@ func (h *Connection_Handler) receivePublishMessage(msg SignalingMessage) {
 
 		h.sendOkMessage(requestId)
 
-		go source.run()
+		h.node.registerSource(&source) // Register source
+
+		go source.run() // Run source
 	}()
 }
 
@@ -279,7 +281,7 @@ func (h *Connection_Handler) receivePlayMessage(msg SignalingMessage) {
 
 		h.sendOkMessage(requestId)
 
-		h.node.registerSink(&sink)
+		h.node.registerSink(&sink) // Register sink
 	}()
 }
 
