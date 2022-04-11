@@ -484,7 +484,6 @@ const TEST_CLIENT_HTML = `
             ws.addEventListener("message", function (event) {
                 var msg = parseMessage("" + event.data);
                 console.log(msg);
-
                 switch (msg.type) {
                     case "OK":
                         changeStatus("Status: Connected");
@@ -493,6 +492,10 @@ const TEST_CLIENT_HTML = `
                         stopClient();
                         enableForm();
                         alert("Error: " + msg.args["error-message"]);
+                        break;
+                    case "STANDBY":
+                        document.getElementById("test_video").pause();
+                        document.getElementById("test_video").srcObject = null;
                         break;
                     case "OFFER":
                         watchOnOffer(msg);

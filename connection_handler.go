@@ -281,6 +281,8 @@ func (h *Connection_Handler) receivePlayMessage(msg SignalingMessage) {
 
 		h.sendOkMessage(requestId)
 
+		h.sendStandbyMessage(requestId)
+
 		h.node.registerSink(&sink) // Register sink
 	}()
 }
@@ -373,6 +375,19 @@ func (h *Connection_Handler) sendErrorMessage(code string, errMsg string) {
 func (h *Connection_Handler) sendOkMessage(requestID string) {
 	msg := SignalingMessage{
 		method: "OK",
+		params: make(map[string]string),
+		body:   "",
+	}
+
+	msg.params["Request-ID"] = requestID
+
+	h.send(msg)
+}
+
+// Sends a STANDBY message
+func (h *Connection_Handler) sendStandbyMessage(requestID string) {
+	msg := SignalingMessage{
+		method: "STANDBY",
 		params: make(map[string]string),
 		body:   "",
 	}

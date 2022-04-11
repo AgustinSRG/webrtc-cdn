@@ -103,6 +103,17 @@ Error-Code: EXAMPLE_CODE
 Error-Message: Example Error message
 ```
 
+### STANDBY
+
+For the `PLAY` request, if there are no available tracks yet, the client will receive a `STANDBY` message.
+
+It's also sent when a source finishes the transmission, until a new one starts.
+
+```
+STANDBY
+Request-ID: request-id
+```
+
 ### Offer
 
 In order to send an SDP offer, an `OFFER` message is required, including the request ID as an argument.

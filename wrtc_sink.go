@@ -70,6 +70,28 @@ func (sink *WRTC_Sink) onTracksReady(localTrackVideo *webrtc.TrackLocalStaticRTP
 	go sink.runAfterTracksReady()
 }
 
+func (sink *WRTC_Sink) onTracksClosed(localTrackVideo *webrtc.TrackLocalStaticRTP, localTrackAudio *webrtc.TrackLocalStaticRTP) {
+	sink.statusMutex.Lock()
+	defer sink.statusMutex.Unlock()
+
+	if sink.localTrackAudio == localTrackAudio && sink.localTrackVideo == localTrackVideo {
+		sink.localTrackAudio = nil
+		sink.localTrackVideo = nil
+		sink.hasAudio = false
+		sink.hasVideo = false
+
+		if sink.peerConnection != nil {
+			sink.peerConnection.OnICECandidate(nil)
+			sink.peerConnection.OnConnectionStateChange(nil)
+			sink.peerConnection.Close()
+		}
+
+		sink.peerConnection = nil
+
+		sink.connection.sendStandbyMessage(sink.requestId)
+	}
+}
+
 // Starts the peer connection, generates the offer and sets up the event handlers
 func (sink *WRTC_Sink) runAfterTracksReady() {
 	sink.statusMutex.Lock()

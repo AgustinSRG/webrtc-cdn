@@ -158,6 +158,13 @@ func (node *WebRTC_CDN_Node) onRelayClosed(relay *WRTC_Relay) {
 
 	delete(node.relays, relay.sid)
 
+	// Any sinks waiting, tell them the tracks are closed
+	if node.sinks[relay.sid] != nil {
+		for _, sink := range node.sinks[relay.sid] {
+			sink.onTracksClosed(relay.localTrackVideo, relay.localTrackAudio)
+		}
+	}
+
 	// If there are sinks for that stream ID
 	// and there are no source, try resolving it
 	if node.sinks[relay.sid] != nil && len(node.sinks[relay.sid]) > 0 {

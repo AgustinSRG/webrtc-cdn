@@ -235,10 +235,6 @@ func (relay *WRTC_Relay) onClose() {
 	}
 
 	relay.peerConnection = nil
-	relay.hasAudio = false
-	relay.hasVideo = false
-	relay.localTrackAudio = nil
-	relay.localTrackVideo = nil
 
 	relay.node.onRelayClosed(relay)
 }
@@ -256,8 +252,4 @@ func (relay *WRTC_Relay) close() {
 	}
 
 	relay.peerConnection = nil
-	relay.hasAudio = false
-	relay.hasVideo = false
-	relay.localTrackAudio = nil
-	relay.localTrackVideo = nil
 }

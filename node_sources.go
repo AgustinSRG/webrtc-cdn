@@ -81,4 +81,11 @@ func (node *WebRTC_CDN_Node) onSourceClosed(source *WRTC_Source) {
 
 		delete(node.senders, source.sid)
 	}
+
+	// Any sinks waiting, tell them the tracks are closed
+	if node.sinks[source.sid] != nil {
+		for _, sink := range node.sinks[source.sid] {
+			sink.onTracksClosed(source.localTrackVideo, source.localTrackAudio)
+		}
+	}
 }
