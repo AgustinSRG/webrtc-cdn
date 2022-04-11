@@ -157,6 +157,7 @@ func (h *Connection_Handler) receivePublishMessage(msg SignalingMessage) {
 	requestId := msg.params["request-id"]
 	streamId := msg.params["stream-id"]
 	streamType := strings.ToUpper(msg.params["stream-type"])
+	auth := msg.params["auth"]
 
 	// Validate params
 
@@ -167,6 +168,11 @@ func (h *Connection_Handler) receivePublishMessage(msg SignalingMessage) {
 
 	if len(streamId) == 0 || len(streamId) > 255 {
 		h.sendErrorMessage("INVALID_STREAM_ID", "Stream ID must be an string from 1 to 255 characters.")
+		return
+	}
+
+	if !checkAuthentication(auth, "stream_publish", streamId) {
+		h.sendErrorMessage("INVALID_AUTH", "Invalid authentication provided.")
 		return
 	}
 
@@ -220,6 +226,7 @@ func (h *Connection_Handler) receivePublishMessage(msg SignalingMessage) {
 func (h *Connection_Handler) receivePlayMessage(msg SignalingMessage) {
 	requestId := msg.params["request-id"]
 	streamId := msg.params["stream-id"]
+	auth := msg.params["auth"]
 
 	// Validate params
 
@@ -230,6 +237,11 @@ func (h *Connection_Handler) receivePlayMessage(msg SignalingMessage) {
 
 	if len(streamId) == 0 || len(streamId) > 255 {
 		h.sendErrorMessage("INVALID_STREAM_ID", "Stream ID must be an string from 1 to 255 characters.")
+		return
+	}
+
+	if !checkAuthentication(auth, "stream_play", streamId) {
+		h.sendErrorMessage("INVALID_AUTH", "Invalid authentication provided.")
 		return
 	}
 

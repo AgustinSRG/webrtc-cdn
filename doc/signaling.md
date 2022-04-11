@@ -54,7 +54,7 @@ The required arguments are:
 
 Optional arguments:
 
- - `Auth` - Authorization token. Must be a JSON web token signed with the provided secret in the node configuration and the algorithm `HMAC_256`. The subject must be set to `stream_publish` and a claim with name `stream_id` is required containing the same value as you provide in `Stream-ID`.
+ - `Auth` - Authorization token. Must be a JSON web token signed with the provided secret in the node configuration and the algorithm `HMAC_256`. The subject must be set to `stream_publish` and a claim with name `sid` is required containing the same value as you provide in `Stream-ID`.
 
 ```
 PUBLISH
@@ -75,7 +75,7 @@ The required arguments are:
 
 Optional arguments:
 
- - `Auth` - Authorization token. Must be a JSON web token signed with the provided secret in the node configuration and the algorithm `HMAC_256`. The subject must be set to `stream_play` and a claim with name `stream_id` is required containing the same value as you provide in `Stream-ID`.
+ - `Auth` - Authorization token. Must be a JSON web token signed with the provided secret in the node configuration and the algorithm `HMAC_256`. The subject must be set to `stream_play` and a claim with name `sid` is required containing the same value as you provide in `Stream-ID`.
 
 ```
 PLAY
