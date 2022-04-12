@@ -58,6 +58,16 @@ func (h *Connection_Handler) init() {
 // Reads messages, parses them and applies them
 func (h *Connection_Handler) run() {
 	defer func() {
+		if err := recover(); err != nil {
+			switch x := err.(type) {
+			case string:
+				h.log("Error: " + x)
+			case error:
+				h.log("Error: " + x.Error())
+			default:
+				h.log("Connection Crashed!")
+			}
+		}
 		h.log("Connection closed.")
 		// Ensure connection is closed
 		h.connection.Close()
