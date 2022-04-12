@@ -47,7 +47,7 @@ You can configure the node using environment variables
 | Variable Name | Description |
 |---|---|
 | STUN_SERVER | STUN server URL. Example: `stun:stun.l.google.com:19302` |
-| TURN_SERVER | TURN server URL. Set if the server is behing NAT. Example: `turn:turn.example.com:3478` |
+| TURN_SERVER | TURN server URL. Set if the server is behind NAT. Example: `turn:turn.example.com:3478` |
 | TURN_USERNAME | Username for the TURN server. |
 | TURN_PASSWORD | Credential for the TURN server. |
 
