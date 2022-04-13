@@ -20,6 +20,10 @@ func loadWebRTCConfig() webrtc.Configuration {
 		peerConnectionConfig.ICEServers = append(peerConnectionConfig.ICEServers, webrtc.ICEServer{
 			URLs: []string{stunServer},
 		})
+	} else {
+		peerConnectionConfig.ICEServers = append(peerConnectionConfig.ICEServers, webrtc.ICEServer{
+			URLs: []string{"stun:stun.l.google.com:19302"},
+		})
 	}
 
 	// TURN server
