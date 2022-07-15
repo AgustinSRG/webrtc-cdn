@@ -21,6 +21,7 @@ type WebRTC_CDN_Node struct {
 	// Config
 	id           string
 	redisClient  *redis.Client
+	standAlone   bool
 	upgrader     *websocket.Upgrader
 	reqCount     uint64
 	sinkCount    uint64
@@ -88,6 +89,8 @@ func (node *WebRTC_CDN_Node) init() {
 			node.requestLimit = uint32(cil)
 		}
 	}
+
+	node.standAlone = os.Getenv("STAND_ALONE") == "YES"
 }
 
 // Runs the node
@@ -108,17 +111,19 @@ func (node *WebRTC_CDN_Node) run() {
 
 	redisTLS := os.Getenv("REDIS_TLS")
 
-	if redisTLS == "YES" {
-		node.redisClient = redis.NewClient(&redis.Options{
-			Addr:      redisHost + ":" + redisPort,
-			Password:  redisPassword,
-			TLSConfig: &tls.Config{},
-		})
-	} else {
-		node.redisClient = redis.NewClient(&redis.Options{
-			Addr:     redisHost + ":" + redisPort,
-			Password: redisPassword,
-		})
+	if !node.standAlone {
+		if redisTLS == "YES" {
+			node.redisClient = redis.NewClient(&redis.Options{
+				Addr:      redisHost + ":" + redisPort,
+				Password:  redisPassword,
+				TLSConfig: &tls.Config{},
+			})
+		} else {
+			node.redisClient = redis.NewClient(&redis.Options{
+				Addr:     redisHost + ":" + redisPort,
+				Password: redisPassword,
+			})
+		}
 	}
 
 	// Setup websocket handler

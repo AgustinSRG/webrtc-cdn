@@ -19,6 +19,10 @@ const REDIS_BROADCAST_CHANNEL = "webrtc_cdn"
 
 // Setup redis client to receive messages
 func setupRedisListener(node *WebRTC_CDN_Node) {
+	if node.standAlone {
+		return
+	}
+
 	defer func() {
 		if err := recover(); err != nil {
 			switch x := err.(type) {
@@ -133,6 +137,10 @@ func (node *WebRTC_CDN_Node) receiveRedisMessage(msg string) {
 
 // Sends a redis message
 func (node *WebRTC_CDN_Node) sendRedisMessage(channel string, msg *map[string]string) {
+	if node.standAlone {
+		return
+	}
+
 	b, e := json.Marshal(msg)
 	if e != nil {
 		LogError(e)
