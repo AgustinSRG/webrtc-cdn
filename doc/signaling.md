@@ -101,6 +101,7 @@ If an error happens, the server will send an `ERROR` message, with the details o
 ERROR
 Error-Code: EXAMPLE_CODE
 Error-Message: Example Error message
+Request-ID: request-id
 ```
 
 ### STANDBY

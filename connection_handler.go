@@ -172,17 +172,17 @@ func (h *Connection_Handler) receivePublishMessage(msg SignalingMessage) {
 	// Validate params
 
 	if len(requestId) == 0 || len(requestId) > 255 {
-		h.sendErrorMessage("INVALID_REQUEST_ID", "Request ID must be an string from 1 to 255 characters.")
+		h.sendErrorMessage("INVALID_REQUEST_ID", "Request ID must be an string from 1 to 255 characters.", requestId)
 		return
 	}
 
 	if len(streamId) == 0 || len(streamId) > 255 {
-		h.sendErrorMessage("INVALID_STREAM_ID", "Stream ID must be an string from 1 to 255 characters.")
+		h.sendErrorMessage("INVALID_STREAM_ID", "Stream ID must be an string from 1 to 255 characters.", requestId)
 		return
 	}
 
 	if !checkAuthentication(auth, "stream_publish", streamId) {
-		h.sendErrorMessage("INVALID_AUTH", "Invalid authentication provided.")
+		h.sendErrorMessage("INVALID_AUTH", "Invalid authentication provided.", requestId)
 		return
 	}
 
@@ -213,12 +213,12 @@ func (h *Connection_Handler) receivePublishMessage(msg SignalingMessage) {
 		defer h.statusMutex.Unlock()
 
 		if h.requests[requestId] != 0 {
-			h.sendErrorMessage("PROTOCOL_ERROR", "You reused the same request ID for 2 different requests.")
+			h.sendErrorMessage("PROTOCOL_ERROR", "You reused the same request ID for 2 different requests.", requestId)
 			return
 		}
 
 		if h.requestCount > h.node.requestLimit {
-			h.sendErrorMessage("LIMIT_REQUESTS", "Too many requests on the same socket.")
+			h.sendErrorMessage("LIMIT_REQUESTS", "Too many requests on the same socket.", requestId)
 			return
 		}
 
@@ -243,17 +243,17 @@ func (h *Connection_Handler) receivePlayMessage(msg SignalingMessage) {
 	// Validate params
 
 	if len(requestId) == 0 || len(requestId) > 255 {
-		h.sendErrorMessage("INVALID_REQUEST_ID", "Request ID must be an string from 1 to 255 characters.")
+		h.sendErrorMessage("INVALID_REQUEST_ID", "Request ID must be an string from 1 to 255 characters.", requestId)
 		return
 	}
 
 	if len(streamId) == 0 || len(streamId) > 255 {
-		h.sendErrorMessage("INVALID_STREAM_ID", "Stream ID must be an string from 1 to 255 characters.")
+		h.sendErrorMessage("INVALID_STREAM_ID", "Stream ID must be an string from 1 to 255 characters.", requestId)
 		return
 	}
 
 	if !checkAuthentication(auth, "stream_play", streamId) {
-		h.sendErrorMessage("INVALID_AUTH", "Invalid authentication provided.")
+		h.sendErrorMessage("INVALID_AUTH", "Invalid authentication provided.", requestId)
 		return
 	}
 
@@ -276,12 +276,12 @@ func (h *Connection_Handler) receivePlayMessage(msg SignalingMessage) {
 		defer h.statusMutex.Unlock()
 
 		if h.requests[requestId] != 0 {
-			h.sendErrorMessage("PROTOCOL_ERROR", "You reused the same request ID for 2 different requests.")
+			h.sendErrorMessage("PROTOCOL_ERROR", "You reused the same request ID for 2 different requests.", requestId)
 			return
 		}
 
 		if h.requestCount > h.node.requestLimit {
-			h.sendErrorMessage("LIMIT_REQUESTS", "Too many requests on the same socket.")
+			h.sendErrorMessage("LIMIT_REQUESTS", "Too many requests on the same socket.", requestId)
 			return
 		}
 
@@ -368,7 +368,7 @@ func (h *Connection_Handler) send(msg SignalingMessage) {
 }
 
 // Sends an ERROR message to the client
-func (h *Connection_Handler) sendErrorMessage(code string, errMsg string) {
+func (h *Connection_Handler) sendErrorMessage(code string, errMsg string, requestID string) {
 	msg := SignalingMessage{
 		method: "ERROR",
 		params: make(map[string]string),
@@ -377,6 +377,7 @@ func (h *Connection_Handler) sendErrorMessage(code string, errMsg string) {
 
 	msg.params["Error-Code"] = code
 	msg.params["Error-Message"] = errMsg
+	msg.params["Request-ID"] = requestID
 
 	h.send(msg)
 }
