@@ -16,7 +16,7 @@ RUN go build
 
 # Expose ports
 
-EXPOSE 1935
+EXPOSE 80
 EXPOSE 443
 
 EXPOSE 40000:65535/UDP
