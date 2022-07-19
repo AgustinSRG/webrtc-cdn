@@ -196,10 +196,6 @@ func (node *WebRTC_CDN_Node) ServeHTTP(w http.ResponseWriter, req *http.Request)
 		node.mutexConnections.Unlock()
 
 		go handler.run()
-	} else if req.URL.Path == "/test" {
-		w.Header().Add("Content-Type", "text/html")
-		w.WriteHeader(200)
-		fmt.Fprint(w, TEST_CLIENT_HTML)
 	} else {
 		w.WriteHeader(200)
 		fmt.Fprintf(w, "WebRTC-CDN Signaling Server. Connect to /ws for signaling\nGo to /test for testing.")
