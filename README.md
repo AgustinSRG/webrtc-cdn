@@ -63,13 +63,13 @@ To configure the redis connection, set the following variables:
 | REDIS_PASSWORD | Redis authentication password, if required. |
 | REDIS_TLS | Set it to `YES` in order to use TLS for the connection. |
 
-### TLS
+### TLS for signaling
 
-If you want to use TLS (recommended), you have to set 3 variables in order for it to work:
+If you want to use TLS for the websocket connections (recommended), you have to set 3 variables in order for it to work:
 
 | Variable Name | Description |
 |---|---|
-| SSL_PORT | RTMPS (RTMP over TLS) listening port. Default is `443` |
+| SSL_PORT | HTTPS listening port. Default is `443` |
 | SSL_CERT | Path to SSL certificate. |
 | SSL_KEY | Path to SSL private key. |
 
@@ -87,7 +87,7 @@ Here is a list with more options you can configure:
 
 | Variable Name | Description |
 |---|---|
-| HTTP_PORT | HTTP listening port for insecure websocket connections. Default is `80` |
+| HTTP_PORT | HTTP listening port for insecure websocket connections, used for signaling. Default is `80` |
 | BIND_ADDRESS | Bind address for siganling services. By default it binds to all network interfaces. |
 | LOG_REQUESTS | Set to `YES` or `NO`. By default is `YES` |
 | LOG_DEBUG | Set to `YES` or `NO`. By default is `NO` |
