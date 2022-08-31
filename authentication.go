@@ -41,7 +41,7 @@ func checkAuthentication(auth string, expectedSubject string, streamId string) b
 	}
 
 	if claims["sub"] == nil || claims["sub"].(string) != expectedSubject {
-		return false // Invalid sibject
+		return false // Invalid subject
 	}
 
 	if claims["sid"] == nil || claims["sid"].(string) != streamId {
