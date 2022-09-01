@@ -112,3 +112,21 @@ Check the documentation in order to connect to the nodes:
 If you want to know about the inter-node communication protocol check:
 
  - [Inter-Node communication protocol](./doc/redis.md)
+
+## Client Libraries
+
+Here is a list of available client libraries to connect to webrtc-cdn:
+
+ - [Javascript client for NodeJS and web browsers](https://github.com/AgustinSRG/webrtc-cdn-client)
+
+## Utilities / Experiments
+
+Here is a list of utilities and experiments based of webrtc-cdn:
+
+ - [Video Publisher](https://github.com/AgustinSRG/webrtc-publish)
+ - [Forwarder](https://github.com/AgustinSRG/webrtc-forwarder)
+ - [Video filtering](https://github.com/AgustinSRG/webrtc-video-filter)
+
+## License
+
+This project is under the [MIT License](./LICENSE).
