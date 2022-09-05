@@ -57,7 +57,7 @@ To configure the redis connection, set the following variables:
 
 | Variable Name | Description |
 |---|---|
-| STAND_ALONE | Set it to `YES` if you want to disable redis and just use a single node. Bu default, `webrtc-cdn` will use redis | 
+| STAND_ALONE | Set it to `YES` if you want to disable redis and just use a single node. By default, `webrtc-cdn` will use redis | 
 | REDIS_PORT | Port to connect to Redis Pub/Sub. Default is `6379` |
 | REDIS_HOST | Host to connect to Redis Pub/Sub. Default is `127.0.0.1` |
 | REDIS_PASSWORD | Redis authentication password, if required. |
