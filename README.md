@@ -16,7 +16,7 @@ To compile the code type:
 go build
 ```
 
-The build command will create a binary in the currenct directory, called `webrtc-cdn`, or `webrtc-cdn.exe` if you are using Windows.
+The build command will create a binary in the current directory, called `webrtc-cdn`, or `webrtc-cdn.exe` if you are using Windows.
 
 ## Docker Image
 
@@ -88,7 +88,7 @@ Here is a list with more options you can configure:
 | Variable Name | Description |
 |---|---|
 | HTTP_PORT | HTTP listening port for insecure websocket connections, used for signaling. Default is `80` |
-| BIND_ADDRESS | Bind address for siganling services. By default it binds to all network interfaces. |
+| BIND_ADDRESS | Bind address for signaling services. By default it binds to all network interfaces. |
 | LOG_REQUESTS | Set to `YES` or `NO`. By default is `YES` |
 | LOG_DEBUG | Set to `YES` or `NO`. By default is `NO` |
 | MAX_IP_CONCURRENT_CONNECTIONS | Max number of concurrent connections to accept from a single IP. By default is 4. |
@@ -97,11 +97,11 @@ Here is a list with more options you can configure:
 
 ## Firewall configuration
 
-The ports used by the signaling websocket server must be openned, they are `80` and `443` by default.
+The ports used by the signaling websocket server must be opened, they are `80` and `443` by default.
 
 In order for the nodes to be able to communicate via WebRTC, they need to use the port range `40000:65535/UDP`
 
-If you use a TURN server there is no need for the UDP ports to be oppened, since communication can be acomplish using the TURN server as intermediate.
+If you use a TURN server there is no need for the UDP ports to be opened, since communication can be accomplish using the TURN server as intermediate.
 
 ## Documentation
 

@@ -4,7 +4,7 @@ Nodes communicate between them using a publish-subscription service (Redis).
 
 All nodes subscribe to the channel `webrtc_cdn`.
 
-Ecah node will automatically generate an identifier and will subscribe to the channel with the same name.
+Each node will automatically generate an identifier and will subscribe to the channel with the same name.
 
 ## Message format
 
@@ -82,7 +82,7 @@ The destination node ID must be provided in the `dst` property in the message.
 
 The sdp message must be provided in the `data` property in the message.
 
-The `audio` and `video` peoperties indicate the kind of tracks to receive.
+The `audio` and `video` properties indicate the kind of tracks to receive.
 
 ```json
 {
@@ -117,7 +117,7 @@ The sdp message must be provided in the `data` property in the message.
 
 ### CANDIDATE
 
-This message is sent in order to send an ICE candicate (WebRTC protocol).
+This message is sent in order to send an ICE candidate (WebRTC protocol).
 
 The stream ID id provided in the `sid` property in the message.
 
