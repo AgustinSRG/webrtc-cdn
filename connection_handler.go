@@ -29,12 +29,12 @@ type Connection_Handler struct {
 	node       *WebRTC_CDN_Node // Reference to the node
 	connection *websocket.Conn  // Reference to the websocket connection
 
-	lastHearbeat int64 // Timestamp: Last time a HEARTBEAT message was received
+	lastHeartbeat int64 // Timestamp: Last time a HEARTBEAT message was received
 
 	closed bool // True if the connection is closed
 
 	sendingMutex *sync.Mutex // Mutex to control sending messages
-	statusMutex  *sync.Mutex // Mutex to sontrol access to the status data
+	statusMutex  *sync.Mutex // Mutex to control access to the status data
 
 	requests     map[string]int // List of requests
 	requestCount uint32         // Request count
@@ -82,8 +82,8 @@ func (h *Connection_Handler) run() {
 
 	h.log("Connection established.")
 
-	h.lastHearbeat = time.Now().UnixMilli()
-	go h.sendHeartbeatMessages() // Start hearbeat
+	h.lastHeartbeat = time.Now().UnixMilli()
+	go h.sendHeartbeatMessages() // Start heartbeat
 
 	for {
 		mt, message, err := c.ReadMessage()
@@ -122,7 +122,7 @@ func (h *Connection_Handler) receiveHeartbeat() {
 	h.statusMutex.Lock()
 	defer h.statusMutex.Unlock()
 
-	h.lastHearbeat = time.Now().UnixMilli()
+	h.lastHeartbeat = time.Now().UnixMilli()
 }
 
 // Checks if the client is sending HEARTBEAT messages
@@ -131,7 +131,7 @@ func (h *Connection_Handler) checkHeartbeat() {
 	h.statusMutex.Lock()
 
 	now := time.Now().UnixMilli()
-	mustClose := (now - h.lastHearbeat) >= HEARTBEAT_TIMEOUT_MS
+	mustClose := (now - h.lastHeartbeat) >= HEARTBEAT_TIMEOUT_MS
 
 	defer h.statusMutex.Unlock()
 
@@ -140,7 +140,7 @@ func (h *Connection_Handler) checkHeartbeat() {
 	}
 }
 
-// Task to send HEARTBEAT pertiodically
+// Task to send HEARTBEAT periodically
 func (h *Connection_Handler) sendHeartbeatMessages() {
 	for {
 		time.Sleep(HEARTBEAT_MSG_PERIOD_SECONDS * time.Second)
@@ -149,7 +149,7 @@ func (h *Connection_Handler) sendHeartbeatMessages() {
 			return // Closed
 		}
 
-		// Send hearbeat message
+		// Send heartbeat message
 		msg := SignalingMessage{
 			method: "HEARTBEAT",
 			params: nil,

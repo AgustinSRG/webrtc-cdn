@@ -53,7 +53,7 @@ func LogDebug(line string) {
 	}
 }
 
-// Logs a debig message for a session
+// Logs a debug message for a session
 func LogDebugSession(session_id uint64, ip string, line string) {
 	if LOG_DEBUG_ENABLED {
 		LogLine("[DEBUG] #" + strconv.Itoa(int(session_id)) + " (" + ip + ") " + line)

@@ -14,7 +14,7 @@ import (
 	"github.com/go-redis/redis/v8"
 )
 
-// This channel is used to boardacas messages to all the nodes
+// This channel is used to broadcast messages to all the nodes
 const REDIS_BROADCAST_CHANNEL = "webrtc_cdn"
 
 // Setup redis client to receive messages
@@ -158,7 +158,7 @@ func (node *WebRTC_CDN_Node) sendRedisMessage(channel string, msg *map[string]st
 	}
 }
 
-// Sends an INFO message to othe node(s)
+// Sends an INFO message to other node(s)
 // This message makes them aware the node has a WebRTC source
 // for the specified Stream ID (sid)
 func (node *WebRTC_CDN_Node) sendInfoMessage(channel string, sid string) {

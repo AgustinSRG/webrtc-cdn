@@ -1,5 +1,5 @@
 // Controls the logic of WebRTC senders and relays
-// Fuctionality of inter-node interaction
+// Functionality of inter-node interaction
 
 package main
 

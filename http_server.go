@@ -41,7 +41,7 @@ func (node *WebRTC_CDN_Node) AddIP(ip string) bool {
 	return true
 }
 
-// Checks if an IP is excempted from the limit
+// Checks if an IP is exempted from the limit
 func (node *WebRTC_CDN_Node) isIPExempted(ipStr string) bool {
 	r := os.Getenv("CONCURRENT_LIMIT_WHITELIST")
 
