@@ -198,7 +198,7 @@ func (node *WebRTC_CDN_Node) ServeHTTP(w http.ResponseWriter, req *http.Request)
 		go handler.run()
 	} else {
 		w.WriteHeader(200)
-		fmt.Fprintf(w, "WebRTC-CDN Signaling Server. Connect to /ws for signaling\nGo to /test for testing.")
+		fmt.Fprintf(w, "WebRTC-CDN Signaling Server. Connect to /ws for signaling")
 	}
 }
 
