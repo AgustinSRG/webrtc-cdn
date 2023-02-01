@@ -18,13 +18,15 @@ func makeId(n int) (string, error) {
 	return hex.EncodeToString(bytes), nil
 }
 
+const VERSION = "1.0.0"
+
 // Program entry point
 func main() {
 	godotenv.Load() // Load env vars
 
 	InitLog()
 
-	LogInfo("WebRTC CDN (Version 1.0.0)")
+	LogInfo("Started WebRTC CDN - Version " + VERSION)
 
 	nodeId, err := makeId(20)
 
