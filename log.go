@@ -11,6 +11,14 @@ import (
 )
 
 var LOG_MUTEX = sync.Mutex{}
+var LOG_REQUESTS_ENABLED = true
+var LOG_DEBUG_ENABLED = false
+
+// Loads log configuration
+func InitLog() {
+	LOG_REQUESTS_ENABLED = (os.Getenv("LOG_REQUESTS") != "NO")
+	LOG_DEBUG_ENABLED = os.Getenv("LOG_DEBUG") == "YES"
+}
 
 // Logs a message, including the date and time
 func LogLine(line string) {
@@ -35,16 +43,12 @@ func LogError(err error) {
 	LogLine("[ERROR] " + err.Error())
 }
 
-var LOG_REQUESTS_ENABLED = (os.Getenv("LOG_REQUESTS") != "NO")
-
 // Logs a request message
 func LogRequest(session_id uint64, ip string, line string) {
 	if LOG_REQUESTS_ENABLED {
 		LogLine("[REQUEST] #" + strconv.Itoa(int(session_id)) + " (" + ip + ") " + line)
 	}
 }
-
-var LOG_DEBUG_ENABLED = os.Getenv("LOG_DEBUG") == "YES"
 
 // Logs a debug message
 func LogDebug(line string) {

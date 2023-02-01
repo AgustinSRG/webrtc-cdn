@@ -5,6 +5,8 @@ package main
 import (
 	"crypto/rand"
 	"encoding/hex"
+
+	"github.com/joho/godotenv"
 )
 
 // Generates an unique ID for the node
@@ -18,6 +20,10 @@ func makeId(n int) (string, error) {
 
 // Program entry point
 func main() {
+	godotenv.Load() // Load env vars
+
+	InitLog()
+
 	LogInfo("WebRTC CDN (Version 1.0.0)")
 
 	nodeId, err := makeId(20)

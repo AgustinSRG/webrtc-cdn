@@ -9,9 +9,9 @@ import (
 	"github.com/golang-jwt/jwt"
 )
 
-var JWT_SECRET = os.Getenv("JWT_SECRET")
-
 func checkAuthentication(auth string, expectedSubject string, streamId string) bool {
+	var JWT_SECRET = os.Getenv("JWT_SECRET")
+
 	if JWT_SECRET == "" {
 		return true // No authentication required
 	}
