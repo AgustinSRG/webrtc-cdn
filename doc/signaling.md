@@ -10,7 +10,7 @@ When connected, client and server may exchange signaling messages.
 
 ## Message format
 
-The messages are UTF-8 encoded strings, with parts splits by line breaks:
+The messages are UTF-8 encoded strings, with parts split by line breaks:
  
   - The first line is the message type
   - After it, the message can have an arbitrary number of arguments. Each argument has a name, followed by a colon and it's value.
