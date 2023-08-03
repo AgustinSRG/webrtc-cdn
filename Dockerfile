@@ -8,7 +8,7 @@ ADD . /root
 
 # Fetch dependencies
 
-RUN go get github.com/AgustinSRG/webrtc-cdn
+RUN go get .
 
 # Compile
 
