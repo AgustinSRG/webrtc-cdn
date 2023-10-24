@@ -10,8 +10,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-
-	"github.com/netdata/go.d.plugin/pkg/iprange"
 )
 
 // Generates unique ID for each request
@@ -58,7 +56,7 @@ func (node *WebRTC_CDN_Node) isIPExempted(ipStr string) bool {
 	parts := strings.Split(r, ",")
 
 	for i := 0; i < len(parts); i++ {
-		rang, e := iprange.ParseRange(parts[i])
+		_, rang, e := net.ParseCIDR(parts[i])
 
 		if e != nil {
 			LogError(e)
