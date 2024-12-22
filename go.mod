@@ -1,8 +1,9 @@
 module github.com/AgustinSRG/webrtc-cdn
 
-go 1.22
+go 1.22.0
 
 require (
+	github.com/AgustinSRG/go-tls-certificate-loader v1.0.0
 	github.com/go-redis/redis/v8 v8.11.5
 	github.com/golang-jwt/jwt/v5 v5.2.1
 	github.com/gorilla/websocket v1.5.3

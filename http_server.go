@@ -3,6 +3,7 @@
 package main
 
 import (
+	"crypto/tls"
 	"fmt"
 	"net"
 	"net/http"
@@ -10,6 +11,9 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
+
+	tls_certificate_loader "github.com/AgustinSRG/go-tls-certificate-loader"
 )
 
 // Generates unique ID for each request
@@ -94,27 +98,69 @@ func (node *WebRTC_CDN_Node) runHTTPSecureServer(wg *sync.WaitGroup) {
 	bind_addr := os.Getenv("BIND_ADDRESS")
 
 	// Setup HTTPS server
-	var ssl_port int
-	ssl_port = 443
+	var port int
+	port = 443
 	customSSLPort := os.Getenv("SSL_PORT")
 	if customSSLPort != "" {
 		sslp, e := strconv.Atoi(customSSLPort)
 		if e == nil {
-			ssl_port = sslp
+			port = sslp
 		}
 	}
 
 	certFile := os.Getenv("SSL_CERT")
 	keyFile := os.Getenv("SSL_KEY")
 
-	if certFile != "" && keyFile != "" {
-		// Listen
-		LogInfo("[SSL] Listening on " + bind_addr + ":" + strconv.Itoa(ssl_port))
-		errSSL := http.ListenAndServeTLS(bind_addr+":"+strconv.Itoa(ssl_port), certFile, keyFile, node)
+	if certFile == "" || keyFile == "" {
+		return
+	}
 
-		if errSSL != nil {
-			LogError(errSSL)
+	var sslReloadSeconds = 60
+	customSslReloadSeconds := os.Getenv("SSL_CHECK_RELOAD_SECONDS")
+	if customSslReloadSeconds != "" {
+		n, e := strconv.Atoi(customSslReloadSeconds)
+		if e == nil {
+			sslReloadSeconds = n
 		}
+	}
+
+	certificateLoader, err := tls_certificate_loader.NewTlsCertificateLoader(tls_certificate_loader.TlsCertificateLoaderConfig{
+		CertificatePath:   certFile,
+		KeyPath:           keyFile,
+		CheckReloadPeriod: time.Duration(sslReloadSeconds) * time.Second,
+		OnReload: func() {
+			LogInfo("Reloaded SSL certificates")
+		},
+		OnError: func(err error) {
+			LogError(err)
+		},
+	})
+
+	if err != nil {
+		LogError(err)
+		return
+	}
+
+	defer certificateLoader.Close()
+
+	// Setup HTTPS server
+
+	tlsServer := http.Server{
+		Addr:    bind_addr + ":" + strconv.Itoa(port),
+		Handler: node,
+		TLSConfig: &tls.Config{
+			GetCertificate: certificateLoader.GetCertificate,
+		},
+	}
+
+	// Listen
+
+	LogInfo("[SSL] Listening on " + bind_addr + ":" + strconv.Itoa(port))
+
+	errSSL := tlsServer.ListenAndServeTLS("", "")
+
+	if errSSL != nil {
+		LogError(errSSL)
 	}
 }
 
