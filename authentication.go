@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/golang-jwt/jwt"
+	"github.com/golang-jwt/jwt/v5"
 )
 
 func checkAuthentication(auth string, expectedSubject string, streamId string) bool {
