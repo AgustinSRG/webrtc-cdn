@@ -9,5 +9,8 @@
 			"webrtc-cdn": true,
 			"webrtc-cdn.exe": true
 		},
+		"cSpell.words": [
+			"redis"
+		],
 	}
 }

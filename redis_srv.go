@@ -31,7 +31,7 @@ func setupRedisListener(node *WebRTC_CDN_Node) {
 			case error:
 				LogError(x)
 			default:
-				LogError(errors.New("Could not connect to Redis"))
+				LogError(errors.New("could not connect to redis"))
 			}
 		}
 		LogWarning("Connection to Redis lost!")
@@ -123,7 +123,7 @@ func (node *WebRTC_CDN_Node) receiveRedisMessage(msg string) {
 		data := msgData["data"]
 		hasVideo := (msgData["video"] == "true")
 		hasAudio := (msgData["audio"] == "true")
-		node.receiveOfferMessage(msgSource, sid, data, hasVideo, hasAudio)
+		node.receiveOfferMessage(sid, data, hasVideo, hasAudio)
 	case "ANSWER":
 		sid := msgData["sid"]
 		data := msgData["data"]

@@ -50,6 +50,4 @@ func main() {
 
 	// Run
 	node.run()
-
-	<-(chan int)(nil) // Block forever
 }

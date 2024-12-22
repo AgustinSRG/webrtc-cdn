@@ -23,7 +23,7 @@ func checkAuthentication(auth string, expectedSubject string, streamId string) b
 	token, err := jwt.Parse(auth, func(token *jwt.Token) (interface{}, error) {
 		// Check the algorithm
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
 
 		// Provide signing key

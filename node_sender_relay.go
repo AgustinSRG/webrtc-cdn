@@ -126,7 +126,7 @@ func (node *WebRTC_CDN_Node) receiveInfoMessage(from string, sid string) {
 
 // Called when an OFFER message is received
 // This message is managed by the relay
-func (node *WebRTC_CDN_Node) receiveOfferMessage(from string, sid string, data string, hasVideo bool, hasAudio bool) {
+func (node *WebRTC_CDN_Node) receiveOfferMessage(sid string, data string, hasVideo bool, hasAudio bool) {
 	node.mutexStatus.Lock()
 	defer node.mutexStatus.Unlock()
 
