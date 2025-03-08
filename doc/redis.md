@@ -41,7 +41,7 @@ The stream ID must be provided in the `sid` property in the message.
 
 This message is sent to provide information about a stream location.
 
-The stream ID id provided in the `sid` property in the message.
+The stream ID is provided in the `sid` property in the message.
 
 The node ID is provided in the `src` property in the message.
 
@@ -57,7 +57,7 @@ The node ID is provided in the `src` property in the message.
 
 This message is sent in order to open a WebRTC connection between nodes.
 
-The stream ID id provided in the `sid` property in the message.
+The stream ID is provided in the `sid` property in the message.
 
 The destination node ID must be provided in the `dst` property in the message.
 
@@ -76,7 +76,7 @@ When the connect message is received by the node connected to the publisher, it 
 
 This message is sent in order to send an SDP offer (WebRTC protocol).
 
-The stream ID id provided in the `sid` property in the message.
+The stream ID is provided in the `sid` property in the message.
 
 The destination node ID must be provided in the `dst` property in the message.
 
@@ -99,7 +99,8 @@ The `audio` and `video` properties indicate the kind of tracks to receive.
 ### ANSWER
 
 This message is sent in order to send an SDP answer (WebRTC protocol).
-The stream ID id provided in the `sid` property in the message.
+
+The stream ID is provided in the `sid` property in the message.
 
 The destination node ID must be provided in the `dst` property in the message.
 
@@ -119,7 +120,7 @@ The sdp message must be provided in the `data` property in the message.
 
 This message is sent in order to send an ICE candidate (WebRTC protocol).
 
-The stream ID id provided in the `sid` property in the message.
+The stream ID is provided in the `sid` property in the message.
 
 The destination node ID must be provided in the `dst` property in the message.
 
