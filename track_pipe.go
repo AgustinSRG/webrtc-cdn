@@ -6,7 +6,7 @@ import (
 	"errors"
 	"io"
 
-	"github.com/pion/webrtc/v3"
+	"github.com/pion/webrtc/v4"
 )
 
 const TRACK_PIPE_BUFFER_LENGTH = 1400

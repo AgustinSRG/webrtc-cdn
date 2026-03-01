@@ -5,7 +5,7 @@ package main
 import (
 	"os"
 
-	"github.com/pion/webrtc/v3"
+	"github.com/pion/webrtc/v4"
 )
 
 // This function loads WebRTC config from env variables
