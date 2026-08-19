@@ -16,6 +16,9 @@ import (
 	tls_certificate_loader "github.com/AgustinSRG/go-tls-certificate-loader"
 )
 
+// Size limit for WebSocket messages (64 kb)
+const WS_MSG_SIZE_LIMIT = 64 * 1024
+
 // Generates unique ID for each request
 func (node *WebRTC_CDN_Node) getRequestID() uint64 {
 	node.mutexReqCount.Lock()
@@ -223,6 +226,8 @@ func (node *WebRTC_CDN_Node) ServeHTTP(w http.ResponseWriter, req *http.Request)
 			LogError(err)
 			return
 		}
+
+		c.SetReadLimit(WS_MSG_SIZE_LIMIT)
 
 		handler := Connection_Handler{
 			id:         reqId,
